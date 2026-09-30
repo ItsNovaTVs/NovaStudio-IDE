@@ -40,6 +40,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/monokai.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material-darker.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/nord.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.css">
 
   <!-- CodeMirror JS Core & Comprehensive Language Modes -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
@@ -59,6 +60,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/swift/swift.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/r/r.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closetag.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/comment/continuecomment.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.js"></script>
 
   <!-- External Execution Engines -->
   <!-- Pyodide is loaded lazily only when a Python file is run. -->
@@ -495,6 +501,42 @@
       };
       if (ext === "json") return {name:"javascript", json:true};
       return modes[ext] || "javascript";
+    }
+
+    function showNovaCommandHints(cm) {
+      if (typeof CodeMirror === "undefined" || typeof CodeMirror.showHint !== "function") return;
+      const cursor = cm.getCursor();
+      const line = cm.getLine(cursor.line);
+      const word = line.slice(0,cursor.ch).match(/[A-Za-z_][A-Za-z0-9_]*$/);
+      const ext = (activeTabFile || "").split(".").pop().toLowerCase();
+      const sets = {
+        java: [
+          ["public static void main(String[] args) {\n  \n}","public static void main(String[] args) { … }"],
+          ["System.out.println(\"\");","System.out.println(…);"],
+          ["public class Main {\n  \n}","public class Main { … }"],
+          ["if (condition) {\n  \n}","if (…) { … }"],
+          ["for (int i = 0; i < length; i++) {\n  \n}","for (…) { … }"]
+        ],
+        cpp: [["int main() {\n  \n  return 0;\n}","int main() { … }"],["std::cout << \"\" << std::endl;","std::cout << … << std::endl;"]],
+        c: [["int main(void) {\n  \n  return 0;\n}","int main(void) { … }"],["printf(\"\");","printf(…);"]],
+        py: [["def name():\n    \n","def name(): …"],["if condition:\n    \n","if condition: …"],["print(\"\")","print(…)"]],
+        js: [["function name() {\n  \n}","function name() { … }"],["console.log(\"\");","console.log(…);"]],
+        ts: [["function name() {\n  \n}","function name() { … }"],["console.log(\"\");","console.log(…);"]],
+        html: [["<div>\n  \n</div>","<div> … </div>"],["<button></button>","<button> … </button>"]],
+        css: [["selector {\n  \n}","selector { … }"]]
+      };
+      const list = sets[ext] || [];
+      const token = word ? word[0].toLowerCase() : "";
+      const items = list.filter(function(item){
+        return !token || item[0].toLowerCase().indexOf(token) === 0 || item[1].toLowerCase().indexOf(token) === 0;
+      });
+      CodeMirror.showHint(cm,function(){
+        return {
+          list:items.map(function(item){return {text:item[0],display:item[1]};}),
+          from:CodeMirror.Pos(cursor.line,word ? word.index : cursor.ch),
+          to:CodeMirror.Pos(cursor.line,cursor.ch)
+        };
+      },{completeSingle:false,closeOnUnfocus:true});
     }
 
     function getLanguageIconHtml(filename) {
@@ -1096,7 +1138,16 @@
           lineWrapping:false,
           indentUnit:2,
           tabSize:2,
-          autofocus:true
+          smartIndent:true,
+          electricChars:true,
+          autoCloseBrackets:true,
+          matchBrackets:true,
+          autoCloseTags:true,
+          autofocus:true,
+          extraKeys:{
+            "Ctrl-Space": function(cm){ showNovaCommandHints(cm); },
+            "Cmd-Space": function(cm){ showNovaCommandHints(cm); }
+          }
         });
         editorInstance.on("change", function() {
           if (!activeTabFile) return;
