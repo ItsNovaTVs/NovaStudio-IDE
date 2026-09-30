@@ -986,7 +986,7 @@
       if (active.endsWith('.css')) {
         html = `<!doctype html><html><head><style>${html}</style></head><body><div class="preview-root">CSS Preview</div></body></html>`;
       } else if (active.endsWith('.js')) {
-        html = `<!doctype html><html><body><pre id="out"></pre><script>const originalLog=console.log;console.log=(...a)=>{document.getElementById('out').textContent += a.join(' ') + '\\n';};\n${html}</script></body></html>`;
+        html = `<!doctype html><html><body><pre id="out"></pre><script>const originalLog=console.log;console.log=(...a)=>{document.getElementById('out').textContent += a.join(' ') + '\\n';};\n${html}<\/script></body></html>`;
       }
       iframe.srcdoc = html;
     }
