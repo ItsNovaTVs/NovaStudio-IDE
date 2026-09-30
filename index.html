@@ -863,7 +863,7 @@
       } else if (active.endsWith(".js")) {
         html = "<!doctype html><html><body><pre id='out'></pre><script>" +
           "console.log=function(){document.getElementById('out').textContent+=Array.from(arguments).join(' ')+'\\n';};" +
-          html.split("</script>").join("<" + "/script>") +
+          html.split("<" + "/script>").join("<" + "/script>") +
           "</" + "script></body></html>";
       }
       iframe.srcdoc = html;
