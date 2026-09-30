@@ -398,774 +398,727 @@
   <!-- UI Toast Notification Container -->
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
+
   <script>
-    // Global Application State
+    "use strict";
+
     let editorInstance = null;
     let pyodideInstance = null;
-    
-    // File Management State - Expanded Language Support
     let workspaceFiles = {
-      'index.html': `<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: sans-serif; text-align: center; padding: 50px; background: #0f172a; color: #f8fafc; }\n    h1 { color: #38bdf8; }\n  </style>\n</head>\n<body>\n  <h1>🚀 Welcome to NovaStudio IDE!</h1>\n  <p>Supports C, C++, Go, Rust, Kotlin, TypeScript, Python, Java, SQL, PHP, Ruby, Bash, HTML & CSS.</p>\n  <button onclick="alert('Interactive Web Sandbox works!')">Run Interactive JS</button>\n</body>\n</html>`,
-      'main.cpp': `// C++ Workbench\n#include <iostream>\n#include <vector>\n#include <string>\n\nint main() {\n    std::cout << "Executing C++ Application..." << std::endl;\n    std::vector<std::string> languages = {"C++", "Rust", "Go", "Kotlin", "Python"};\n    for (const auto& lang : languages) {\n        std::cout << "Loaded language module: " << lang << std::endl;\n    }\n    return 0;\n}`,
-      'main.c': `/* C Language Workbench */\n#include <stdio me.h>\n\nint main() {\n    printf("Running C Program in NovaStudio Client Workbench...\\n");\n    printf("Memory safety and optimization ready.\\n");\n    return 0;\n}`,
-      'app.go': `// Go Language Workbench\npackage main\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Golang Runtime execution sandbox active!")\n    fmt.Println("Concurrent goroutine simulation ready.")\n}`,
-      'main.rs': `// Rust Workbench\nfn main() {\n    println!("Rust Web Workbench loaded!");\n    let numbers = vec![1, 2, 3, 4, 5];\n    println!("Vector count: {}", numbers.len());\n}`,
-      'App.kt': `// Kotlin Workbench\nfun main() {\n    val greeting = "Hello from Kotlin!"\n    println(greeting)\n    listOf("Android", "JVM", "Native").forEach { platform ->\n        println("Target platform: $platform")\n    }\n}`,
-      'index.ts': `// TypeScript Workbench\ninterface Developer {\n    name: string;\n    skills: string[];\n}\n\nconst dev: Developer = {\n    name: "ItsNovaTVs",\n    skills: ["C++", "Rust", "Go", "TypeScript", "Python"]\n};\n\nconsole.log(\`Developer \${dev.name} initialized with \${dev.skills.length} skills.\`);`,
-      'script.py': `# Python 3.11 WASM Runtime\nimport sys\n\ndef greet(name):\n    return f"Hello, {name}! Pyodide Python Engine operational."\n\nprint(greet("ItsNovaTVs"))\nprint(f"Python Version: {sys.version.split()[0]}")\n`,
-      'app.rb': `# Ruby Workbench\ndef calculate_factorial(n)\n  (1..n).inject(:*) || 1\nend\n\nputs "Ruby Sandbox Active!"\nputs "Factorial of 5 is: #{calculate_factorial(5)}"`,
-      'index.php': `<?php\n// PHP Workbench\necho "PHP Server Script Executed Successfully!\\n";\n$frameworks = ["Laravel", "Symfony", "WordPress"];\nforeach ($frameworks as $fw) {\n    echo "Supported Framework Ecosystem: " . $fw . "\\n";\n}\n?>`,
-      'database.sql': `-- AlaSQL Engine Demo\nCREATE TABLE Engineers (id INT, name STRING, language STRING);\nINSERT INTO Engineers VALUES (1, 'Nova', 'C++'), (2, 'Alex', 'Rust'), (3, 'Sam', 'Go');\n\nSELECT * FROM Engineers;\n`,
-      'App.java': `public class App {\n    public static void main(String[] args) {\n        System.out.println("Java Sandbox initialized.");\n        for(int i = 1; i <= 3; i++) {\n            System.out.println("Processing iteration: " + i);\n        }\n    }\n}\n`,
-      'script.sh': `#!/bin/bash\necho "Shell Scripting Sandbox initialized"\necho "Current user: ItsNovaTVs"\necho "System Status: OK"`
+      "index.html": "<!DOCTYPE html>\\n<html>\\n<head>\\n<style>body{font-family:sans-serif;text-align:center;padding:50px;background:#0f172a;color:#f8fafc}h1{color:#38bdf8}</style>\\n</head>\\n<body>\\n<h1>🚀 Welcome to NovaStudio IDE!</h1>\\n<p>Interactive web sandbox ready.</p>\\n</body>\\n</html>",
+      "main.cpp": "#include <iostream>\\nint main(){std::cout << \"Hello from NovaStudio!\" << std::endl; return 0;}",
+      "main.c": "#include <stdio.h>\\nint main(){printf(\"Hello from C!\\\\n\"); return 0;}",
+      "app.go": "package main\\nimport \"fmt\"\\nfunc main(){fmt.Println(\"Golang runtime simulation active!\")}",
+      "main.rs": "fn main(){println!(\"Rust workbench active!\");}",
+      "App.kt": "fun main(){println(\"Hello from Kotlin!\")}",
+      "index.ts": "const message: string = \"Hello from TypeScript!\";\\nconsole.log(message);",
+      "script.py": "print(\"Hello from Python!\")",
+      "app.rb": "puts \"Ruby sandbox active!\"",
+      "index.php": "<?php echo \"PHP sandbox active!\\n\"; ?>",
+      "database.sql": "CREATE TABLE Engineers (id INT, name STRING);\\nINSERT INTO Engineers VALUES (1, 'Nova'), (2, 'Alex');\\nSELECT * FROM Engineers;",
+      "App.java": "public class App { public static void main(String[] args) { System.out.println(\"Java sandbox active.\"); } }",
+      "script.sh": "#!/bin/bash\\necho \"Shell sandbox active\""
     };
 
     let fileGithubShas = {};
-    let openTabs = ['main.cpp', 'index.html', 'script.py', 'app.go', 'main.rs'];
-    let activeTabFile = 'main.cpp';
-
-    // Extended Mode Mapper for CodeMirror
-    function getCodeMirrorMode(filename) {
-      if (!filename) return 'javascript';
-      const ext = filename.split('.').pop().toLowerCase();
-      switch (ext) {
-        case 'html': case 'htm': return 'htmlmixed';
-        case 'css': return 'css';
-        case 'js': case 'jsx': return 'javascript';
-        case 'ts': case 'tsx': return 'text/typescript';
-        case 'json': return { name: 'javascript', json: true };
-        case 'py': return 'python';
-        case 'cpp': case 'hpp': case 'cc': case 'cxx': return 'text/x-c++src';
-        case 'c': case 'h': return 'text/x-csrc';
-        case 'cs': return 'text/x-csharp';
-        case 'java': return 'text/x-java';
-        case 'kt': case 'kts': return 'text/x-kotlin';
-        case 'go': return 'go';
-        case 'rs': return 'rust';
-        case 'rb': return 'ruby';
-        case 'php': return 'application/x-httpd-php';
-        case 'sql': return 'sql';
-        case 'sh': case 'bash': return 'shell';
-        case 'yml': case 'yaml': return 'yaml';
-        case 'swift': return 'swift';
-        case 'r': return 'r';
-        case 'md': return 'markdown';
-        default: return 'javascript';
-      }
-    }
-
-    // Get Crisp Language Icon HTML (Fixes square/crossed out boxes)
-    function getLanguageIconHtml(filename) {
-      if (!filename) return '<i class="fa-solid fa-file-code text-blue-400"></i>';
-      const ext = filename.split('.').pop().toLowerCase();
-
-      switch (ext) {
-        case 'html': case 'htm': return '<i class="devicon-html5-plain text-orange-500"></i>';
-        case 'css': return '<i class="devicon-css3-plain text-blue-400"></i>';
-        case 'js': case 'jsx': return '<i class="devicon-javascript-plain text-yellow-400"></i>';
-        case 'ts': case 'tsx': return '<i class="devicon-typescript-plain text-blue-400"></i>';
-        case 'py': return '<i class="devicon-python-plain text-yellow-400"></i>';
-        case 'cpp': case 'hpp': case 'cc': return '<i class="devicon-cplusplus-plain text-blue-500"></i>';
-        case 'c': case 'h': return '<i class="devicon-c-plain text-blue-400"></i>';
-        case 'go': return '<i class="devicon-go-original-wordmark text-cyan-400"></i>';
-        case 'rs': return '<i class="devicon-rust-plain text-orange-400"></i>';
-        case 'kt': case 'kts': return '<i class="devicon-kotlin-plain text-purple-400"></i>';
-        case 'java': return '<i class="devicon-java-plain text-red-400"></i>';
-        case 'rb': return '<i class="devicon-ruby-plain text-red-500"></i>';
-        case 'php': return '<i class="devicon-php-plain text-indigo-400"></i>';
-        case 'sql': return '<i class="fa-solid fa-database text-purple-400"></i>';
-        case 'json': return '<i class="devicon-json-plain text-amber-300"></i>';
-        case 'sh': case 'bash': return '<i class="devicon-bash-plain text-green-400"></i>';
-        case 'yml': case 'yaml': return '<i class="fa-solid fa-file-lines text-amber-400"></i>';
-        case 'swift': return '<i class="devicon-swift-plain text-orange-500"></i>';
-        case 'r': return '<i class="devicon-r-plain text-blue-500"></i>';
-        case 'md': return '<i class="devicon-markdown-original text-gray-300"></i>';
-        default: return '<i class="fa-solid fa-file-code text-blue-400"></i>';
-      }
-    }
-
-    // Render File Explorer Items with Fixed Icons
-    function renderFileExplorerTree() {
-      const treeEl = document.getElementById('file-explorer-tree');
-      treeEl.innerHTML = '';
-
-      Object.keys(workspaceFiles).forEach(filename => {
-        const iconHtml = getLanguageIconHtml(filename);
-
-        const item = document.createElement('div');
-        item.className = `file-tree-item flex items-center justify-between px-2 py-1.5 rounded cursor-pointer ${filename === activeTabFile ? 'bg-editor-activeTab font-semibold text-white' : 'text-gray-300'}`;
-        
-        item.innerHTML = `
-          <div class="flex items-center space-x-2 truncate" onclick="openFileTab('${filename}')">
-            <span class="w-4 h-4 flex items-center justify-center text-sm">${iconHtml}</span>
-            <span class="truncate">${filename}</span>
-          </div>
-          <button onclick="deleteFile('${filename}')" class="text-gray-500 hover:text-red-400 p-1"><i class="fa-solid fa-trash"></i></button>
-        `;
-        treeEl.appendChild(item);
-      });
-    }
-
-    // Run Code Dispatcher
-    async function runActiveCode() {
-      if (!activeTabFile) return;
-      const ext = activeTabFile.split('.').pop().toLowerCase();
-      const code = editorInstance.getValue();
-
-      showToast('Executing active file...', 'info');
-
-      if (ext === 'html' || ext === 'css' || ext === 'js') {
-        runWebSandbox();
-      } else if (ext === 'ts') {
-        runTypeScriptSandbox(code);
-      } else if (ext === 'py') {
-        await runPythonCode(code);
-      } else if (ext === 'sql') {
-        runSqlDatabase(code);
-      } else if (['cpp', 'c', 'go', 'rs', 'kt', 'java', 'rb', 'php', 'sh'].includes(ext)) {
-        runCompiledLanguageSimulator(ext, code);
-      } else if (ext === 'json') {
-        validateJson(code);
-      } else {
-        appendOutput(`[System] Execution preview ready for .${ext} file.`);
-      }
-    }
-
-    // TypeScript Client Execution
-    function runTypeScriptSandbox(tsCode) {
-      switchOutputTab('terminal');
-      appendOutput(`=== Executing TypeScript (${activeTabFile}) ===`);
-      try {
-        // Simple console interception
-        const cleanJs = tsCode.replace(/interface\s+\w+\s*\{[\s\S]*?\}/g, '')
-                               .replace(/type\s+\w+\s*=[\s\S]*?;/g, '')
-                               .replace(/:\s*\w+(\[\])?/g, '');
-        
-        const logs = [];
-        const originalLog = console.log;
-        console.log = (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '));
-        
-        new Function(cleanJs)();
-        console.log = originalLog;
-        
-        if (logs.length > 0) logs.forEach(l => appendOutput(l));
-        else appendOutput("[TypeScript Execution finished cleanly]");
-      } catch (err) {
-        appendOutput(`[TS Error] ${err.message}`);
-      }
-    }
-
-    // Multi-Language Compiled Simulator Runner (C, C++, Go, Rust, Kotlin, Java, Ruby, PHP, Shell)
-    function runCompiledLanguageSimulator(ext, code) {
-      switchOutputTab('terminal');
-      const langNameMap = {
-        cpp: 'C++', c: 'C', go: 'Go', rs: 'Rust', kt: 'Kotlin',
-        java: 'Java', rb: 'Ruby', php: 'PHP', sh: 'Shell/Bash'
-      };
-
-      appendOutput(`=== Compiling & Executing ${langNameMap[ext] || ext.toUpperCase()} (${activeTabFile}) ===`);
-
-      // Extract console output print statements from source code across languages
-      let outputs = [];
-      
-      if (ext === 'cpp' || ext === 'c') {
-        const coutRegex = /(?:std::cout\s*<<|printf\s*\()\s*([^;]+)(?:<<\s*std::endl|;\s*\))/g;
-        let match;
-        while ((match = coutRegex.exec(code)) !== null) {
-          outputs.push(match[1].replace(/["']/g, '').replace(/\\n/g, ''));
-        }
-      } else if (ext === 'go') {
-        const fmtRegex = /fmt\.Println\s*\(\s*["'](.*?)["']\s*\)/g;
-        let match;
-        while ((match = fmtRegex.exec(code)) !== null) outputs.push(match[1]);
-      } else if (ext === 'rs') {
-        const printlnRegex = /println!\s*\(\s*["'](.*?)["'](?:,\s*.*?)?\)/g;
-        let match;
-        while ((match = printlnRegex.exec(code)) !== null) outputs.push(match[1].replace('{}', ''));
-      } else if (ext === 'kt' || ext === 'java') {
-        const printRegex = /(?:System\.out\.println|println)\s*\(\s*["']?(.*?)["']?\s*\);?/g;
-        let match;
-        while ((match = printRegex.exec(code)) !== null) outputs.push(match[1]);
-      } else if (ext === 'rb' || ext === 'php' || ext === 'sh') {
-        const echoRegex = /(?:puts|echo)\s+["']?(.*?)["']?;?/g;
-        let match;
-        while ((match = echoRegex.exec(code)) !== null) outputs.push(match[1]);
-      }
-
-      if (outputs.length > 0) {
-        outputs.forEach(line => appendOutput(line));
-      } else {
-        appendOutput(`[${langNameMap[ext] || ext.toUpperCase()} Engine] Code compiled without syntax errors.`);
-      }
-
-      appendOutput(`\n[Process completed with exit code 0]`);
-    }
-
-    // Core UI / editor functionality
-    let githubToken = '';
-    let githubRepo = '';
-    let githubBranch = 'main';
+    let openTabs = ["main.cpp","index.html","script.py","app.go","main.rs"];
+    let activeTabFile = "main.cpp";
+    let githubToken = "";
+    let githubRepo = "";
+    let githubBranch = "main";
     let bottomPanelCollapsed = false;
 
-    function showToast(message, type = 'info') {
-      const container = document.getElementById('toast-container');
-      if (!container) return;
-      const toast = document.createElement('div');
-      const styles = {
-        info: 'bg-blue-600 border-blue-400',
-        success: 'bg-green-600 border-green-400',
-        error: 'bg-red-600 border-red-400',
-        warning: 'bg-amber-600 border-amber-400'
-      };
-      toast.className = `pointer-events-auto ${styles[type] || styles.info} border text-white px-3 py-2 rounded-md shadow-lg text-xs transition-opacity duration-300`;
-      toast.textContent = message;
-      container.appendChild(toast);
-      setTimeout(() => {
-        toast.classList.add('opacity-0');
-        setTimeout(() => toast.remove(), 300);
-      }, 2600);
-    }
+    function $(id) { return document.getElementById(id); }
 
-    function switchOutputTab(tab) {
-      const views = {
-        terminal: document.getElementById('output-view-terminal'),
-        preview: document.getElementById('output-view-preview'),
-        sqlgrid: document.getElementById('output-view-sqlgrid')
-      };
-      const buttons = {
-        terminal: document.getElementById('tab-btn-terminal'),
-        preview: document.getElementById('tab-btn-preview'),
-        sqlgrid: document.getElementById('tab-btn-sqlgrid')
-      };
-      Object.keys(views).forEach(key => {
-        if (views[key]) views[key].classList.toggle('hidden', key !== tab);
-        if (buttons[key]) {
-          buttons[key].classList.toggle('text-blue-400', key === tab);
-          buttons[key].classList.toggle('font-semibold', key === tab);
-          buttons[key].classList.toggle('border-b-2', key === tab);
-          buttons[key].classList.toggle('border-blue-500', key === tab);
-          buttons[key].classList.toggle('text-gray-400', key !== tab);
-        }
-      });
+    function showToast(message, type) {
+      type = type || "info";
+      const container = $("toast-container");
+      if (!container) return;
+      const toast = document.createElement("div");
+      const cls = type === "success" ? "bg-green-600 border-green-400" :
+                  type === "error" ? "bg-red-600 border-red-400" :
+                  type === "warning" ? "bg-amber-600 border-amber-400" :
+                  "bg-blue-600 border-blue-400";
+      toast.className = "pointer-events-auto " + cls + " border text-white px-3 py-2 rounded-md shadow-lg text-xs";
+      toast.textContent = String(message);
+      container.appendChild(toast);
+      setTimeout(function(){ toast.remove(); }, 3000);
     }
 
     function appendOutput(text) {
-      const output = document.getElementById('output-view-terminal');
-      if (!output) return;
-      const line = document.createElement('div');
+      const out = $("output-view-terminal");
+      if (!out) return;
+      const line = document.createElement("div");
       line.textContent = String(text);
-      output.appendChild(line);
-      output.scrollTop = output.scrollHeight;
+      out.appendChild(line);
+      out.scrollTop = out.scrollHeight;
     }
 
     function clearConsoleOutput() {
-      const output = document.getElementById('output-view-terminal');
-      if (output) output.innerHTML = '<div class="text-gray-500 font-sans italic">// Terminal cleared.</div>';
+      const out = $("output-view-terminal");
+      if (out) out.innerHTML = '<div class="text-gray-500 font-sans italic">// Terminal cleared.</div>';
+    }
+
+    function switchOutputTab(tab) {
+      ["terminal","preview","sqlgrid"].forEach(function(name) {
+        const view = $("output-view-" + name);
+        const button = $("tab-btn-" + name);
+        if (view) view.classList.toggle("hidden", name !== tab);
+        if (button) {
+          button.classList.toggle("text-blue-400", name === tab);
+          button.classList.toggle("font-semibold", name === tab);
+          button.classList.toggle("border-b-2", name === tab);
+          button.classList.toggle("border-blue-500", name === tab);
+          button.classList.toggle("text-gray-400", name !== tab);
+        }
+      });
     }
 
     function toggleBottomPanel() {
-      const panel = document.getElementById('bottom-panel');
-      const icon = document.getElementById('bottom-panel-toggle-icon');
+      const panel = $("bottom-panel");
+      const icon = $("bottom-panel-toggle-icon");
       if (!panel) return;
       bottomPanelCollapsed = !bottomPanelCollapsed;
-      panel.style.height = bottomPanelCollapsed ? '2rem' : '14rem';
-      if (icon) icon.className = bottomPanelCollapsed
-        ? 'fa-solid fa-chevron-up'
-        : 'fa-solid fa-chevron-down';
+      panel.style.height = bottomPanelCollapsed ? "2rem" : "14rem";
+      if (icon) icon.className = bottomPanelCollapsed ? "fa-solid fa-chevron-up" : "fa-solid fa-chevron-down";
+    }
+
+    function getCodeMirrorMode(filename) {
+      const ext = (filename || "").split(".").pop().toLowerCase();
+      const modes = {
+        html:"htmlmixed", htm:"htmlmixed", css:"css", js:"javascript", jsx:"javascript",
+        ts:"text/typescript", tsx:"text/typescript", py:"python",
+        cpp:"text/x-c++src", hpp:"text/x-c++src", c:"text/x-csrc", h:"text/x-csrc",
+        cs:"text/x-csharp", java:"text/x-java", kt:"text/x-kotlin", kts:"text/x-kotlin",
+        go:"go", rs:"rust", rb:"ruby", php:"application/x-httpd-php", sql:"sql",
+        sh:"shell", bash:"shell", yml:"yaml", yaml:"yaml", swift:"swift", r:"r", md:"markdown"
+      };
+      if (ext === "json") return {name:"javascript", json:true};
+      return modes[ext] || "javascript";
+    }
+
+    function getLanguageIconHtml(filename) {
+      const ext = (filename || "").split(".").pop().toLowerCase();
+      const icons = {
+        html:"fa-solid fa-code", htm:"fa-solid fa-code", css:"fa-solid fa-palette",
+        js:"fa-brands fa-js", jsx:"fa-brands fa-js", ts:"fa-solid fa-code",
+        tsx:"fa-solid fa-code", py:"fa-brands fa-python", cpp:"fa-solid fa-file-code",
+        hpp:"fa-solid fa-file-code", c:"fa-solid fa-file-code", h:"fa-solid fa-file-code",
+        go:"fa-solid fa-code", rs:"fa-solid fa-gear", kt:"fa-solid fa-code",
+        kts:"fa-solid fa-code", java:"fa-brands fa-java", rb:"fa-solid fa-gem",
+        php:"fa-brands fa-php", sql:"fa-solid fa-database", json:"fa-solid fa-brackets-curly",
+        sh:"fa-solid fa-terminal", bash:"fa-solid fa-terminal", yaml:"fa-solid fa-file-lines",
+        yml:"fa-solid fa-file-lines", swift:"fa-solid fa-code", r:"fa-solid fa-chart-line",
+        md:"fa-brands fa-markdown"
+      };
+      return '<i class="' + (icons[ext] || "fa-solid fa-file-code") + '"></i>';
+    }
+
+    function renderFileExplorerTree() {
+      const tree = $("file-explorer-tree");
+      if (!tree) return;
+      tree.innerHTML = "";
+      Object.keys(workspaceFiles).forEach(function(filename) {
+        const row = document.createElement("div");
+        row.className = "file-tree-item flex items-center justify-between px-2 py-1.5 rounded cursor-pointer " +
+          (filename === activeTabFile ? "bg-editor-activeTab font-semibold text-white" : "text-gray-300");
+        const left = document.createElement("div");
+        left.className = "flex items-center space-x-2 truncate";
+        left.innerHTML = '<span class="w-4 h-4 flex items-center justify-center text-sm">' + getLanguageIconHtml(filename) + '</span><span class="truncate"></span>';
+        left.lastElementChild.textContent = filename;
+        left.onclick = function(){ openFileTab(filename); };
+        const del = document.createElement("button");
+        del.className = "text-gray-500 hover:text-red-400 p-1";
+        del.title = "Delete " + filename;
+        del.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        del.onclick = function(e){ e.stopPropagation(); deleteFile(filename); };
+        row.appendChild(left);
+        row.appendChild(del);
+        tree.appendChild(row);
+      });
     }
 
     function renderTabs() {
-      const header = document.getElementById('tabs-header');
+      const header = $("tabs-header");
       if (!header) return;
-      header.innerHTML = '';
-      openTabs.forEach(filename => {
-        const tab = document.createElement('button');
-        tab.type = 'button';
-        tab.className = `h-full px-3 flex items-center gap-2 text-xs border-r border-editor-border ${filename === activeTabFile ? 'active-tab' : 'text-gray-400 hover:text-white'}`;
-        tab.innerHTML = `${getLanguageIconHtml(filename)}<span>${filename}</span><span class="text-gray-500 hover:text-red-400 ml-1" title="Close">×</span>`;
-        tab.addEventListener('click', (event) => {
-          if (event.target.tagName === 'SPAN' && event.target.textContent === '×') {
-            closeTab(filename);
-          } else {
-            openFileTab(filename);
-          }
-        });
+      header.innerHTML = "";
+      openTabs.forEach(function(filename) {
+        if (!(filename in workspaceFiles)) return;
+        const tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = "h-full px-3 flex items-center gap-2 text-xs border-r border-editor-border " +
+          (filename === activeTabFile ? "active-tab" : "text-gray-400 hover:text-white");
+        tab.innerHTML = getLanguageIconHtml(filename) + '<span></span><span class="text-gray-500 hover:text-red-400 ml-1" title="Close">×</span>';
+        tab.children[1].textContent = filename;
+        tab.onclick = function(e) {
+          if (e.target && e.target.textContent === "×") closeTab(filename);
+          else openFileTab(filename);
+        };
         header.appendChild(tab);
       });
     }
 
-    function closeTab(filename) {
-      if (!openTabs.includes(filename)) return;
-      if (openTabs.length === 1) return showToast('Keep at least one file tab open.', 'warning');
-      openTabs = openTabs.filter(f => f !== filename);
-      if (activeTabFile === filename) activeTabFile = openTabs[0];
-      renderTabs();
-      loadActiveFileIntoEditor();
-      renderFileExplorerTree();
-    }
-
     function loadActiveFileIntoEditor() {
       if (!editorInstance || !activeTabFile) return;
-      editorInstance.setOption('mode', getCodeMirrorMode(activeTabFile));
-      editorInstance.setValue(workspaceFiles[activeTabFile] ?? '');
+      editorInstance.setOption("mode", getCodeMirrorMode(activeTabFile));
+      editorInstance.setValue(workspaceFiles[activeTabFile] || "");
       editorInstance.clearHistory();
       editorInstance.refresh();
     }
 
     function openFileTab(filename) {
       if (!(filename in workspaceFiles)) return;
-      if (!openTabs.includes(filename)) openTabs.push(filename);
+      if (openTabs.indexOf(filename) === -1) openTabs.push(filename);
       activeTabFile = filename;
       renderTabs();
-      loadActiveFileIntoEditor();
       renderFileExplorerTree();
+      loadActiveFileIntoEditor();
+    }
+
+    function closeTab(filename) {
+      if (openTabs.length <= 1) {
+        showToast("Keep at least one file tab open.", "warning");
+        return;
+      }
+      openTabs = openTabs.filter(function(f){ return f !== filename; });
+      if (activeTabFile === filename) activeTabFile = openTabs[0];
+      renderTabs();
+      loadActiveFileIntoEditor();
     }
 
     function createNewFilePrompt() {
-      const filename = prompt('New file name:');
+      const name = prompt("New file name:");
+      if (!name) return;
+      const filename = name.trim();
       if (!filename) return;
-      const clean = filename.trim();
-      if (!clean) return;
-      if (workspaceFiles[clean] !== undefined) {
-        showToast('A file with that name already exists.', 'warning');
-        openFileTab(clean);
+      if (workspaceFiles[filename] !== undefined) {
+        openFileTab(filename);
+        showToast("That file already exists.", "warning");
         return;
       }
-      workspaceFiles[clean] = '';
-      openFileTab(clean);
-      showToast(`Created ${clean}`, 'success');
+      workspaceFiles[filename] = "";
+      openFileTab(filename);
+      showToast("Created " + filename, "success");
     }
 
     function deleteFile(filename) {
       if (!(filename in workspaceFiles)) return;
       if (Object.keys(workspaceFiles).length <= 1) {
-        showToast('The workspace must contain at least one file.', 'warning');
+        showToast("The workspace needs at least one file.", "warning");
         return;
       }
-      if (!confirm(`Delete ${filename}?`)) return;
+      if (!confirm("Delete " + filename + "?")) return;
       delete workspaceFiles[filename];
-      openTabs = openTabs.filter(f => f !== filename);
+      openTabs = openTabs.filter(function(f){ return f !== filename; });
       if (activeTabFile === filename) activeTabFile = openTabs[0] || Object.keys(workspaceFiles)[0];
       renderFileExplorerTree();
       renderTabs();
       loadActiveFileIntoEditor();
-      showToast(`Deleted ${filename}`, 'success');
+      showToast("Deleted " + filename, "success");
     }
 
     function refreshFileExplorer() {
       renderFileExplorerTree();
       renderTabs();
       if (editorInstance) editorInstance.refresh();
-      showToast('Explorer refreshed.', 'info');
+      showToast("Explorer refreshed.", "info");
     }
 
     function changeTheme(theme) {
       if (!editorInstance) return;
-      const supported = ['dracula', 'monokai', 'nord', 'material-darker'];
-      editorInstance.setOption('theme', supported.includes(theme) ? theme : 'dracula');
-      localStorage.setItem('novastudio-theme', theme);
+      editorInstance.setOption("theme", theme || "dracula");
+      localStorage.setItem("novastudio-theme", theme || "dracula");
     }
 
     function toggleAiSidebar() {
-      const sidebar = document.getElementById('ai-sidebar');
-      if (sidebar) sidebar.classList.toggle('hidden');
+      const sidebar = $("ai-sidebar");
+      if (sidebar) sidebar.classList.toggle("hidden");
     }
 
     function openGitHubModal() {
-      const modal = document.getElementById('github-modal');
-      if (modal) modal.classList.remove('hidden');
-      const pat = document.getElementById('gh-pat-input');
-      if (pat && !pat.value && githubToken) pat.value = githubToken;
+      const modal = $("github-modal");
+      if (modal) modal.classList.remove("hidden");
     }
 
     function closeGitHubModal() {
-      const modal = document.getElementById('github-modal');
-      if (modal) modal.classList.add('hidden');
+      const modal = $("github-modal");
+      if (modal) modal.classList.add("hidden");
     }
 
     function openCommitModal() {
-      if (!githubToken || !githubRepo) {
-        showToast('Connect a GitHub repository first.', 'warning');
+      if (!githubRepo) {
+        showToast("Link a GitHub repository first.", "warning");
         openGitHubModal();
         return;
       }
-      const modal = document.getElementById('commit-modal');
-      const path = document.getElementById('commit-filepath');
-      const target = document.getElementById('commit-target-repo-text');
-      const message = document.getElementById('commit-message-input');
-      if (path) path.value = activeTabFile || '';
-      if (target) target.textContent = `Target: ${githubRepo} (${githubBranch})`;
-      if (message) message.value = `Update ${activeTabFile || 'workspace'}`;
-      if (modal) modal.classList.remove('hidden');
+      const modal = $("commit-modal");
+      const path = $("commit-filepath");
+      const target = $("commit-target-repo-text");
+      const message = $("commit-message-input");
+      if (path) path.value = activeTabFile || "";
+      if (target) target.textContent = "Target: " + githubRepo + " (" + githubBranch + ")";
+      if (message) message.value = "Update " + (activeTabFile || "workspace");
+      if (modal) modal.classList.remove("hidden");
     }
 
     function closeCommitModal() {
-      const modal = document.getElementById('commit-modal');
-      if (modal) modal.classList.add('hidden');
+      const modal = $("commit-modal");
+      if (modal) modal.classList.add("hidden");
     }
 
     function getGitHubHeaders() {
       return {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${githubToken}`,
-        'X-GitHub-Api-Version': '2022-11-28'
+        Accept: "application/vnd.github+json",
+        Authorization: "Bearer " + githubToken,
+        "X-GitHub-Api-Version": "2022-11-28"
       };
     }
 
     async function connectGitHubAccount() {
-      const input = document.getElementById('gh-pat-input');
-      const token = input?.value.trim();
-      if (!token) return showToast('Enter a GitHub Personal Access Token.', 'warning');
-
+      const input = $("gh-pat-input");
+      const token = input ? input.value.trim() : "";
+      if (!token) {
+        showToast("Enter a GitHub Personal Access Token.", "warning");
+        return;
+      }
       githubToken = token;
       try {
-        const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
-          headers: getGitHubHeaders()
-        });
-        if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
+        const response = await fetch("https://api.github.com/user/repos?per_page=100&sort=updated", {headers:getGitHubHeaders()});
+        if (!response.ok) throw new Error("GitHub returned HTTP " + response.status);
         const repos = await response.json();
-        const select = document.getElementById('gh-repo-select');
+        const select = $("gh-repo-select");
         if (select) {
           select.innerHTML = '<option value="">-- Select a repository --</option>';
-          repos.forEach(repo => {
-            const option = document.createElement('option');
+          repos.forEach(function(repo) {
+            const option = document.createElement("option");
             option.value = repo.full_name;
             option.textContent = repo.full_name;
             select.appendChild(option);
           });
         }
-        showToast(`Loaded ${repos.length} repositories.`, 'success');
-      } catch (error) {
-        githubToken = '';
-        showToast(`GitHub connection failed: ${error.message}`, 'error');
+        showToast("GitHub connected. " + repos.length + " repositories loaded.", "success");
+      } catch (err) {
+        githubToken = "";
+        showToast("GitHub connection failed: " + err.message, "error");
       }
     }
 
     function onGitHubRepoSelectChange() {
-      const select = document.getElementById('gh-repo-select');
-      const manual = document.getElementById('gh-manual-repo');
-      if (select?.value && manual) manual.value = select.value;
-      if (select?.value) loadGitHubBranches(select.value);
+      const select = $("gh-repo-select");
+      const manual = $("gh-manual-repo");
+      if (select && manual) manual.value = select.value;
+      if (select && select.value) loadGitHubBranches(select.value);
     }
 
     async function loadGitHubBranches(repo) {
       if (!githubToken || !repo) return;
-      const branchSelect = document.getElementById('gh-branch-select');
-      if (!branchSelect) return;
+      const select = $("gh-branch-select");
+      if (!select) return;
       try {
-        const response = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, {
-          headers: getGitHubHeaders()
-        });
+        const response = await fetch("https://api.github.com/repos/" + repo + "/branches?per_page=100", {headers:getGitHubHeaders()});
         if (!response.ok) return;
         const branches = await response.json();
-        branchSelect.innerHTML = '';
-        branches.forEach(branch => {
-          const option = document.createElement('option');
+        select.innerHTML = "";
+        branches.forEach(function(branch) {
+          const option = document.createElement("option");
           option.value = branch.name;
           option.textContent = branch.name;
-          branchSelect.appendChild(option);
+          select.appendChild(option);
         });
-        if (branches.some(b => b.name === 'main')) branchSelect.value = 'main';
-      } catch (error) {
-        console.warn('Could not load branches', error);
+        if (branches.some(function(b){return b.name === "main";})) select.value = "main";
+      } catch (err) {
+        console.warn(err);
       }
     }
 
-    async function loadTargetGitHubRepository() {
-      const manual = document.getElementById('gh-manual-repo');
-      const select = document.getElementById('gh-repo-select');
-      const branchSelect = document.getElementById('gh-branch-select');
-      const repo = (manual?.value.trim() || select?.value || '').replace(/^https?:\\/\\/github\\.com\\//, '').replace(/\\/$/, '');
-      const branch = branchSelect?.value || 'main';
-      if (!repo || !repo.includes('/')) return showToast('Enter a repository as owner/repo.', 'warning');
-      if (!githubToken) return showToast('Connect a GitHub token first.', 'warning');
+    function decodeGitHubBase64(value) {
+      const binary = atob(value.replace(/\\s/g, ""));
+      const bytes = Uint8Array.from(binary, function(ch){return ch.charCodeAt(0);});
+      try { return new TextDecoder().decode(bytes); }
+      catch (_) { return binary; }
+    }
 
+    function encodeGitHubText(value) {
+      const bytes = new TextEncoder().encode(value);
+      let binary = "";
+      for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary);
+    }
+
+    async function loadTargetGitHubRepository() {
+      const manual = $("gh-manual-repo");
+      const select = $("gh-repo-select");
+      const branchSelect = $("gh-branch-select");
+      const repo = ((manual && manual.value) || (select && select.value) || "")
+        .trim().replace(/^https?:\\/\\/github\\.com\\//,"").replace(/\\/$/,"");
+      const branch = (branchSelect && branchSelect.value) || "main";
+      if (!repo || repo.indexOf("/") === -1) {
+        showToast("Enter a repository as owner/repo.", "warning");
+        return;
+      }
+      if (!githubToken) {
+        showToast("Connect GitHub first.", "warning");
+        return;
+      }
       try {
-        const response = await fetch(`https://api.github.com/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`, {
-          headers: getGitHubHeaders()
-        });
-        if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
+        const response = await fetch("https://api.github.com/repos/" + repo + "/git/trees/" + encodeURIComponent(branch) + "?recursive=1", {headers:getGitHubHeaders()});
+        if (!response.ok) throw new Error("GitHub returned HTTP " + response.status);
         const tree = await response.json();
-        const blobs = (tree.tree || []).filter(item => item.type === 'blob');
-        const textFiles = blobs.filter(item => !/\\.(png|jpe?g|gif|webp|ico|pdf|zip|exe|dll|wasm|woff2?)$/i.test(item.path));
+        const blobs = (tree.tree || []).filter(function(item){return item.type === "blob";});
         const loaded = {};
-        for (const item of textFiles.slice(0, 200)) {
-          const fileResponse = await fetch(`https://api.github.com/repos/${repo}/contents/${item.path}?ref=${encodeURIComponent(branch)}`, {
-            headers: getGitHubHeaders()
-          });
-          if (!fileResponse.ok) continue;
-          const file = await fileResponse.json();
-          if (file.encoding === 'base64' && typeof file.content === 'string') {
-            try {
-              loaded[item.path] = decodeURIComponent(escape(atob(file.content.replace(/\\s/g, ''))));
-            } catch {
-              loaded[item.path] = atob(file.content.replace(/\\s/g, ''));
-            }
+        for (const item of blobs.slice(0,100)) {
+          if (/\\.(png|jpe?g|gif|webp|ico|pdf|zip|exe|dll|wasm|woff2?)$/i.test(item.path)) continue;
+          const fr = await fetch("https://api.github.com/repos/" + repo + "/contents/" + item.path.split("/").map(encodeURIComponent).join("/") + "?ref=" + encodeURIComponent(branch), {headers:getGitHubHeaders()});
+          if (!fr.ok) continue;
+          const file = await fr.json();
+          if (file.encoding === "base64" && typeof file.content === "string") {
+            loaded[item.path] = decodeGitHubBase64(file.content);
             fileGithubShas[item.path] = file.sha;
           }
         }
-        if (Object.keys(loaded).length === 0) throw new Error('No readable text files found.');
+        if (!Object.keys(loaded).length) throw new Error("No readable files found.");
         workspaceFiles = loaded;
         githubRepo = repo;
         githubBranch = branch;
-        activeTabFile = Object.keys(workspaceFiles)[0];
-        openTabs = Object.keys(workspaceFiles).slice(0, Math.min(5, Object.keys(workspaceFiles).length));
+        activeTabFile = Object.keys(loaded)[0];
+        openTabs = Object.keys(loaded).slice(0,5);
         renderFileExplorerTree();
         renderTabs();
         loadActiveFileIntoEditor();
-        document.getElementById('active-repo-name').textContent = repo;
-        document.getElementById('active-repo-branch').textContent = branch;
-        document.getElementById('github-repo-badge').classList.remove('hidden');
-        document.getElementById('sidebar-repo-text').textContent = repo;
+        if ($("active-repo-name")) $("active-repo-name").textContent = repo;
+        if ($("active-repo-branch")) $("active-repo-branch").textContent = branch;
+        if ($("sidebar-repo-text")) $("sidebar-repo-text").textContent = repo;
+        if ($("github-repo-badge")) $("github-repo-badge").classList.remove("hidden");
         closeGitHubModal();
-        showToast(`Loaded ${Object.keys(loaded).length} files from ${repo}.`, 'success');
-      } catch (error) {
-        showToast(`Repository load failed: ${error.message}`, 'error');
+        showToast("Loaded " + Object.keys(loaded).length + " files.", "success");
+      } catch (err) {
+        showToast("Repository load failed: " + err.message, "error");
       }
     }
 
     async function executePushToGitHub() {
       if (!githubToken || !githubRepo || !activeTabFile) {
-        return showToast('Connect a repository and open a file first.', 'warning');
+        showToast("Connect a repository and open a file first.", "warning");
+        return;
       }
-      const message = document.getElementById('commit-message-input')?.value.trim() || `Update ${activeTabFile}`;
-      const content = editorInstance ? editorInstance.getValue() : workspaceFiles[activeTabFile];
+      const content = editorInstance ? editorInstance.getValue() : (workspaceFiles[activeTabFile] || "");
+      const message = ($("commit-message-input") && $("commit-message-input").value.trim()) || "Update " + activeTabFile;
       workspaceFiles[activeTabFile] = content;
-      const encoded = btoa(unescape(encodeURIComponent(content)));
-      const url = `https://api.github.com/repos/${githubRepo}/contents/${activeTabFile.split('/').map(encodeURIComponent).join('/')}`;
-      const body = { message, content: encoded, branch: githubBranch };
+      const body = {message:message, content:encodeGitHubText(content), branch:githubBranch};
       if (fileGithubShas[activeTabFile]) body.sha = fileGithubShas[activeTabFile];
-
-      const button = document.getElementById('execute-push-btn');
+      const button = $("execute-push-btn");
       if (button) button.disabled = true;
       try {
+        const url = "https://api.github.com/repos/" + githubRepo + "/contents/" +
+          activeTabFile.split("/").map(encodeURIComponent).join("/");
         const response = await fetch(url, {
-          method: 'PUT',
-          headers: { ...getGitHubHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+          method:"PUT",
+          headers:Object.assign({}, getGitHubHeaders(), {"Content-Type":"application/json"}),
+          body:JSON.stringify(body)
         });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.message || `GitHub returned HTTP ${response.status}`);
-        fileGithubShas[activeTabFile] = result.content?.sha || fileGithubShas[activeTabFile];
-        document.getElementById('repo-dirty-indicator')?.classList.add('hidden');
+        if (!response.ok) throw new Error(result.message || "HTTP " + response.status);
+        if (result.content && result.content.sha) fileGithubShas[activeTabFile] = result.content.sha;
+        if ($("repo-dirty-indicator")) $("repo-dirty-indicator").classList.add("hidden");
         closeCommitModal();
-        showToast(`Pushed ${activeTabFile} to ${githubRepo}.`, 'success');
-      } catch (error) {
-        showToast(`Push failed: ${error.message}`, 'error');
+        showToast("Pushed " + activeTabFile + " successfully.", "success");
+      } catch (err) {
+        showToast("Push failed: " + err.message, "error");
       } finally {
         if (button) button.disabled = false;
       }
     }
 
     async function exportProjectZip() {
-      if (typeof JSZip === 'undefined') return showToast('ZIP library is still loading.', 'warning');
-      const zip = new JSZip();
-      Object.entries(workspaceFiles).forEach(([path, content]) => zip.file(path, content));
+      if (typeof JSZip === "undefined") {
+        showToast("ZIP library is not loaded yet.", "error");
+        return;
+      }
       try {
-        const blob = await zip.generateAsync({ type: 'blob' });
+        const zip = new JSZip();
+        Object.keys(workspaceFiles).forEach(function(path){ zip.file(path, workspaceFiles[path]); });
+        const blob = await zip.generateAsync({type:"blob"});
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
-        a.download = 'novastudio-workspace.zip';
+        a.download = "novastudio-workspace.zip";
         document.body.appendChild(a);
         a.click();
         a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        showToast('Workspace ZIP exported.', 'success');
-      } catch (error) {
-        showToast(`ZIP export failed: ${error.message}`, 'error');
+        setTimeout(function(){URL.revokeObjectURL(url);},1000);
+        showToast("Workspace exported.", "success");
+      } catch (err) {
+        showToast("ZIP export failed: " + err.message, "error");
       }
     }
 
     function runWebSandbox() {
-      switchOutputTab('preview');
-      const iframe = document.getElementById('sandbox-iframe');
+      switchOutputTab("preview");
+      const iframe = $("sandbox-iframe");
       if (!iframe) return;
-      const active = activeTabFile.toLowerCase();
-      let html = workspaceFiles[activeTabFile] || '';
-      if (active.endsWith('.css')) {
-        html = `<!doctype html><html><head><style>${html}</style></head><body><div class="preview-root">CSS Preview</div></body></html>`;
-      } else if (active.endsWith('.js')) {
-        html = `<!doctype html><html><body><pre id="out"></pre><script>const originalLog=console.log;console.log=(...a)=>{document.getElementById('out').textContent += a.join(' ') + '\\n';};\n${html}<\/script></body></html>`;
+      const active = (activeTabFile || "").toLowerCase();
+      let html = workspaceFiles[activeTabFile] || "";
+      if (active.endsWith(".css")) {
+        html = "<!doctype html><html><head><style>" + html + "</style></head><body><div style='padding:20px'>CSS Preview</div></body></html>";
+      } else if (active.endsWith(".js")) {
+        html = "<!doctype html><html><body><pre id='out'></pre><script>" +
+          "console.log=function(){document.getElementById('out').textContent+=Array.from(arguments).join(' ')+'\\n';};" +
+          html.replace(/<\\/script/gi, "<\\\\/script") +
+          "</" + "script></body></html>";
       }
       iframe.srcdoc = html;
     }
 
     async function runPythonCode(code) {
-      switchOutputTab('terminal');
-      appendOutput(`=== Python (${activeTabFile}) ===`);
+      switchOutputTab("terminal");
+      appendOutput("=== Python (" + activeTabFile + ") ===");
       try {
         if (!pyodideInstance) {
-          appendOutput('[Python] Loading Pyodide runtime...');
+          appendOutput("[Python] Loading runtime...");
           pyodideInstance = await loadPyodide();
         }
-        pyodideInstance.setStdout({ batched: text => appendOutput(text) });
+        pyodideInstance.setStdout({batched:function(text){appendOutput(text);}});
         await pyodideInstance.runPythonAsync(code);
-        appendOutput('[Process completed with exit code 0]');
-      } catch (error) {
-        appendOutput(`[Python Error] ${error.message}`);
+        appendOutput("[Process completed with exit code 0]");
+      } catch (err) {
+        appendOutput("[Python Error] " + err.message);
       }
     }
 
     function runSqlDatabase(code) {
-      switchOutputTab('sqlgrid');
-      const container = document.getElementById('sql-table-container');
+      switchOutputTab("sqlgrid");
+      const container = $("sql-table-container");
+      if (!container) return;
       try {
-        if (typeof alasql === 'undefined') throw new Error('AlaSQL is not loaded yet.');
-        const statements = code.split(';').map(s => s.trim()).filter(Boolean);
-        let lastResult = [];
-        statements.forEach(statement => {
-          const result = alasql(statement);
-          if (Array.isArray(result)) lastResult = result;
+        if (typeof alasql === "undefined") throw new Error("AlaSQL is not loaded.");
+        let result = [];
+        code.split(";").map(function(s){return s.trim();}).filter(Boolean).forEach(function(statement){
+          const r = alasql(statement);
+          if (Array.isArray(r)) result = r;
         });
-        if (!lastResult.length) {
-          container.textContent = 'SQL executed successfully. No rows returned.';
+        if (!result.length) {
+          container.textContent = "SQL executed successfully. No rows returned.";
           return;
         }
-        const columns = Object.keys(lastResult[0]);
-        container.innerHTML = `<table class="w-full text-left text-xs"><thead><tr>${columns.map(c => `<th class="p-2 border-b border-gray-700 text-blue-300">${c}</th>`).join('')}</tr></thead><tbody>${lastResult.map(row => `<tr>${columns.map(c => `<td class="p-2 border-b border-gray-800">${String(row[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-      } catch (error) {
-        container.textContent = `SQL Error: ${error.message}`;
+        const columns = Object.keys(result[0]);
+        const table = document.createElement("table");
+        table.className = "w-full text-left text-xs";
+        const head = table.createTHead().insertRow();
+        columns.forEach(function(col){
+          const th = document.createElement("th");
+          th.className = "p-2 border-b border-gray-700 text-blue-300";
+          th.textContent = col;
+          head.appendChild(th);
+        });
+        const body = table.createTBody();
+        result.forEach(function(row){
+          const tr = body.insertRow();
+          columns.forEach(function(col){
+            const td = tr.insertCell();
+            td.className = "p-2 border-b border-gray-800";
+            td.textContent = row[col] == null ? "" : String(row[col]);
+          });
+        });
+        container.innerHTML = "";
+        container.appendChild(table);
+      } catch (err) {
+        container.textContent = "SQL Error: " + err.message;
       }
     }
 
     function validateJson(code) {
-      switchOutputTab('terminal');
+      switchOutputTab("terminal");
       try {
         const parsed = JSON.parse(code);
-        appendOutput(`[JSON] Valid. Root type: ${Array.isArray(parsed) ? 'array' : typeof parsed}.`);
-      } catch (error) {
-        appendOutput(`[JSON Error] ${error.message}`);
+        appendOutput("[JSON] Valid. Root type: " + (Array.isArray(parsed) ? "array" : typeof parsed));
+      } catch (err) {
+        appendOutput("[JSON Error] " + err.message);
       }
+    }
+
+    function runTypeScriptSandbox(code) {
+      switchOutputTab("terminal");
+      appendOutput("=== TypeScript (" + activeTabFile + ") ===");
+      try {
+        const clean = code.replace(/interface\\s+\\w+\\s*\\{[\\s\\S]*?\\}/g,"")
+          .replace(/:\\s*[A-Za-z_$][\\w$]*(?:\\[\\])?/g,"");
+        const logs = [];
+        const old = console.log;
+        console.log = function(){logs.push(Array.from(arguments).join(" "));};
+        new Function(clean)();
+        console.log = old;
+        if (logs.length) logs.forEach(appendOutput);
+        else appendOutput("[TypeScript] Execution completed.");
+      } catch (err) {
+        console.log = console.log;
+        appendOutput("[TS Error] " + err.message);
+      }
+    }
+
+    function runCompiledLanguageSimulator(ext, code) {
+      switchOutputTab("terminal");
+      const names = {cpp:"C++",c:"C",go:"Go",rs:"Rust",kt:"Kotlin",java:"Java",rb:"Ruby",php:"PHP",sh:"Shell/Bash"};
+      appendOutput("=== " + (names[ext] || ext.toUpperCase()) + " (" + activeTabFile + ") ===");
+      const patterns = {
+        cpp: /std\\.cout\\s*<<\\s*["']([^"']*)["']/g,
+        c: /printf\\s*\\(\\s*["']([^"']*)["']/g,
+        go: /fmt\\.Println\\s*\\(\\s*["']([^"']*)["']/g,
+        rs: /println!\\s*\\(\\s*["']([^"']*)["']/g,
+        kt: /println\\s*\\(\\s*["']([^"']*)["']/g,
+        java: /System\\.out\\.println\\s*\\(\\s*["']([^"']*)["']/g,
+        rb: /puts\\s+["']([^"']*)["']/g,
+        php: /echo\\s+["']([^"']*)["']/g,
+        sh: /echo\\s+["']([^"']*)["']/g
+      };
+      const re = patterns[ext];
+      const outputs = [];
+      if (re) {
+        let m;
+        while ((m = re.exec(code)) !== null) outputs.push(m[1].replace(/\\\\n/g,""));
+      }
+      if (outputs.length) outputs.forEach(appendOutput);
+      else appendOutput("[" + (names[ext] || ext) + " Engine] Simulation completed.");
+      appendOutput("[Process completed with exit code 0]");
+    }
+
+    async function runActiveCode() {
+      if (!editorInstance || !activeTabFile) {
+        showToast("Editor is not ready yet.", "warning");
+        return;
+      }
+      workspaceFiles[activeTabFile] = editorInstance.getValue();
+      const ext = activeTabFile.split(".").pop().toLowerCase();
+      try {
+        if (["html","css","js"].indexOf(ext) >= 0) runWebSandbox();
+        else if (ext === "ts") runTypeScriptSandbox(workspaceFiles[activeTabFile]);
+        else if (ext === "py") await runPythonCode(workspaceFiles[activeTabFile]);
+        else if (ext === "sql") runSqlDatabase(workspaceFiles[activeTabFile]);
+        else if (ext === "json") validateJson(workspaceFiles[activeTabFile]);
+        else if (["cpp","c","go","rs","kt","java","rb","php","sh"].indexOf(ext) >= 0) runCompiledLanguageSimulator(ext, workspaceFiles[activeTabFile]);
+        else { switchOutputTab("terminal"); appendOutput("[System] No runtime for ." + ext + ", preview only."); }
+      } catch (err) {
+        switchOutputTab("terminal");
+        appendOutput("[Runtime Error] " + err.message);
+      }
+    }
+
+    async function sendAiMessage() {
+      const input = $("ai-user-input");
+      if (!input) return;
+      const query = input.value.trim();
+      if (!query) return;
+      appendAiChatMessage("user", query);
+      input.value = "";
+      await callFreeAiApi("Question: " + query + "\nFile: " + activeTabFile + "\nCode:\n" + (workspaceFiles[activeTabFile] || ""));
+    }
+
+    async function runAiQuickAction(type) {
+      const prompts = {
+        explain:"Explain this code clearly.",
+        fix:"Find likely bugs and explain fixes.",
+        refactor:"Suggest a cleaner modern refactor.",
+        tests:"Suggest useful tests for this file."
+      };
+      appendAiChatMessage("user", "[Action] " + type.toUpperCase());
+      await callFreeAiApi((prompts[type] || "Analyze this code.") + "\nFile: " + activeTabFile + "\n" + (workspaceFiles[activeTabFile] || ""));
+    }
+
+    async function callFreeAiApi(promptText) {
+      const loading = appendAiChatMessage("ai", "Nova AI is thinking...");
+      try {
+        const response = await fetch("https://text.pollinations.ai/", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({messages:[{role:"user",content:promptText}],model:"openai"})
+        });
+        if (!response.ok) throw new Error("AI endpoint HTTP " + response.status);
+        const reply = await response.text();
+        loading.textContent = reply;
+      } catch (err) {
+        loading.innerHTML = "<strong>Local fallback</strong><br>AI endpoint unavailable. Your code is still editable and runnable locally.";
+      }
+    }
+
+    function appendAiChatMessage(sender, text) {
+      const container = $("ai-chat-messages");
+      if (!container) return document.createElement("div");
+      const msg = document.createElement("div");
+      msg.className = sender === "user"
+        ? "bg-blue-950/40 border border-blue-800/40 p-2.5 rounded-lg text-blue-200 ml-4"
+        : "bg-emerald-950/40 border border-emerald-800/40 p-2.5 rounded-lg text-emerald-200 mr-4";
+      msg.textContent = String(text);
+      container.appendChild(msg);
+      container.scrollTop = container.scrollHeight;
+      return msg;
     }
 
     function initializeNovaStudio() {
-      const wrapper = document.getElementById('codemirror-wrapper');
-      if (!wrapper || typeof CodeMirror === 'undefined') {
-        showToast('CodeMirror failed to load.', 'error');
-        return;
+      try {
+        const wrapper = $("codemirror-wrapper");
+        if (!wrapper) throw new Error("Editor container not found.");
+        if (typeof CodeMirror === "undefined") throw new Error("CodeMirror did not load.");
+        editorInstance = CodeMirror(wrapper, {
+          value: workspaceFiles[activeTabFile] || "",
+          mode: getCodeMirrorMode(activeTabFile),
+          theme: localStorage.getItem("novastudio-theme") || "dracula",
+          lineNumbers:true,
+          lineWrapping:false,
+          indentUnit:2,
+          tabSize:2,
+          autofocus:true
+        });
+        editorInstance.on("change", function() {
+          if (!activeTabFile) return;
+          workspaceFiles[activeTabFile] = editorInstance.getValue();
+          const dirty = $("repo-dirty-indicator");
+          if (dirty) dirty.classList.remove("hidden");
+        });
+        renderFileExplorerTree();
+        renderTabs();
+        const selector = $("theme-selector");
+        if (selector) selector.value = localStorage.getItem("novastudio-theme") || "dracula";
+        switchOutputTab("terminal");
+        setTimeout(function(){if(editorInstance) editorInstance.refresh();},100);
+        showToast("NovaStudio ready.", "success");
+      } catch (err) {
+        console.error(err);
+        showToast("NovaStudio startup error: " + err.message, "error");
       }
-      editorInstance = CodeMirror(wrapper, {
-        value: workspaceFiles[activeTabFile] || '',
-        mode: getCodeMirrorMode(activeTabFile),
-        theme: localStorage.getItem('novastudio-theme') || 'dracula',
-        lineNumbers: true,
-        lineWrapping: false,
-        indentUnit: 2,
-        tabSize: 2,
-        autofocus: true
-      });
-      editorInstance.on('change', () => {
-        if (!activeTabFile) return;
-        workspaceFiles[activeTabFile] = editorInstance.getValue();
-        document.getElementById('repo-dirty-indicator')?.classList.remove('hidden');
-      });
-      renderFileExplorerTree();
-      renderTabs();
-      const themeSelector = document.getElementById('theme-selector');
-      if (themeSelector) themeSelector.value = localStorage.getItem('novastudio-theme') || 'dracula';
-      setTimeout(() => editorInstance.refresh(), 0);
-      showToast('NovaStudio ready.', 'success');
     }
 
-    window.addEventListener('keydown', (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    window.addEventListener("keydown", function(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
         runActiveCode();
       }
     });
 
-    window.addEventListener('load', initializeNovaStudio);
+    window.addEventListener("error", function(event) {
+      console.error("NovaStudio error:", event.error || event.message);
+    });
 
-    // Free AI Assistant Handler
-    async function sendAiMessage() {
-      const inputEl = document.getElementById('ai-user-input');
-      const query = inputEl.value.trim();
-      if (!query) return;
+    window.addEventListener("load", initializeNovaStudio);
 
-      appendAiChatMessage('user', query);
-      inputEl.value = '';
-
-      const prompt = `Code file (${activeTabFile}):\n\`\`\`\n${workspaceFiles[activeTabFile] || ''}\n\`\`\`\nQuestion: ${query}`;
-      await callFreeAiApi(prompt);
-    }
-
-    async function runAiQuickAction(type) {
-      const code = workspaceFiles[activeTabFile] || '';
-      let prompt = '';
-
-      switch (type) {
-        case 'explain':
-          prompt = `Explain step-by-step how this ${activeTabFile} code operates:\n\`\`\`\n${code}\n\`\`\``;
-          break;
-        case 'fix':
-          prompt = `Scan this ${activeTabFile} code for bugs or syntax issues and provide fixes:\n\`\`\`\n${code}\n\`\`\``;
-          break;
-        case 'refactor':
-          prompt = `Refactor this code for optimal performance and modern best practices:\n\`\`\`\n${code}\n\`\`\``;
-          break;
-        case 'tests':
-          prompt = `Generate unit tests for this file:\n\`\`\`\n${code}\n\`\`\``;
-          break;
-      }
-
-      appendAiChatMessage('user', `[Action] ${type.toUpperCase()} (${activeTabFile})`);
-      await callFreeAiApi(prompt);
-    }
-
-    // 100% Free Public AI Endpoint with Instant Local Fallback
-    async function callFreeAiApi(promptText) {
-      const loadingDiv = appendAiChatMessage('ai', '<i class="fa-solid fa-spinner fa-spin text-emerald-400"></i> Free Nova AI is processing your request...');
-
-      try {
-        // Free Pollinations AI Endpoint (No cost, no API key)
-        const response = await fetch('https://text.pollinations.ai/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              { role: "system", content: "You are Nova AI, a helpful, free programming assistant embedded in NovaStudio IDE. Provide concise code solutions and clear explanations." },
-              { role: "user", content: promptText }
-            ],
-            model: "openai"
-          })
-        });
-
-        if (response.ok) {
-          const reply = await response.text();
-          loadingDiv.innerHTML = reply.replace(/\n/g, '<br>').replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-900 p-2 rounded text-emerald-300 overflow-x-auto font-mono text-[11px] my-1">$1</pre>');
-          return;
-        }
-      } catch (err) {
-        console.warn("External free AI endpoint busy, using client fallback", err);
-      }
-
-      // Offline Smart Local Analyzer Fallback
-      setTimeout(() => {
-        const code = workspaceFiles[activeTabFile] || '';
-        const lines = code.split('\n').length;
-        const ext = activeTabFile.split('.').pop();
-        
-        loadingDiv.innerHTML = `<strong>🤖 Local Smart Analysis for ${activeTabFile}:</strong><br>` +
-          `• <strong>Language detected:</strong> .${ext} (${lines} lines of code)<br>` +
-          `• <strong>Structure:</strong> File structure is clean and syntactically valid.<br>` +
-          `• <strong>Recommendation:</strong> Use the top bar 'Run Code' button to test live output in the terminal panel.<br>` +
-          `<em>(Free AI engine operational without any subscription or API costs)</em>`;
-      }, 600);
-    }
-
-    function appendAiChatMessage(sender, text) {
-      const container = document.getElementById('ai-chat-messages');
-      const msgDiv = document.createElement('div');
-      msgDiv.className = sender === 'user' 
-        ? 'bg-blue-950/40 border border-blue-800/40 p-2.5 rounded-lg text-blue-200 ml-4'
-        : 'bg-emerald-950/40 border border-emerald-800/40 p-2.5 rounded-lg text-emerald-200 mr-4';
-      
-      msgDiv.innerHTML = text;
-      container.appendChild(msgDiv);
-      container.scrollTop = container.scrollHeight;
-      return msgDiv;
-    }
-  </script>
-</body>
+    window.runActiveCode = runActiveCode;
+    window.openGitHubModal = openGitHubModal;
+    window.openCommitModal = openCommitModal;
+    window.exportProjectZip = exportProjectZip;
+    window.changeTheme = changeTheme;
+    window.toggleAiSidebar = toggleAiSidebar;
+    window.createNewFilePrompt = createNewFilePrompt;
+    window.refreshFileExplorer = refreshFileExplorer;
+    window.switchOutputTab = switchOutputTab;
+    window.clearConsoleOutput = clearConsoleOutput;
+    window.toggleBottomPanel = toggleBottomPanel;
+    window.sendAiMessage = sendAiMessage;
+    window.runAiQuickAction = runAiQuickAction;
+    window.closeGitHubModal = closeGitHubModal;
+    window.connectGitHubAccount = connectGitHubAccount;
+    window.onGitHubRepoSelectChange = onGitHubRepoSelectChange;
+    window.loadTargetGitHubRepository = loadTargetGitHubRepository;
+    window.closeCommitModal = closeCommitModal;
+    window.executePushToGitHub = executePushToGitHub;
+    window.openFileTab = openFileTab;
+    window.deleteFile = deleteFile;
+  </script>body>
 </html>
