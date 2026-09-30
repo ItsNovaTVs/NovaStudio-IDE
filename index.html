@@ -601,6 +601,482 @@
       appendOutput(`\n[Process completed with exit code 0]`);
     }
 
+    // Core UI / editor functionality
+    let githubToken = '';
+    let githubRepo = '';
+    let githubBranch = 'main';
+    let bottomPanelCollapsed = false;
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      const styles = {
+        info: 'bg-blue-600 border-blue-400',
+        success: 'bg-green-600 border-green-400',
+        error: 'bg-red-600 border-red-400',
+        warning: 'bg-amber-600 border-amber-400'
+      };
+      toast.className = `pointer-events-auto ${styles[type] || styles.info} border text-white px-3 py-2 rounded-md shadow-lg text-xs transition-opacity duration-300`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 2600);
+    }
+
+    function switchOutputTab(tab) {
+      const views = {
+        terminal: document.getElementById('output-view-terminal'),
+        preview: document.getElementById('output-view-preview'),
+        sqlgrid: document.getElementById('output-view-sqlgrid')
+      };
+      const buttons = {
+        terminal: document.getElementById('tab-btn-terminal'),
+        preview: document.getElementById('tab-btn-preview'),
+        sqlgrid: document.getElementById('tab-btn-sqlgrid')
+      };
+      Object.keys(views).forEach(key => {
+        if (views[key]) views[key].classList.toggle('hidden', key !== tab);
+        if (buttons[key]) {
+          buttons[key].classList.toggle('text-blue-400', key === tab);
+          buttons[key].classList.toggle('font-semibold', key === tab);
+          buttons[key].classList.toggle('border-b-2', key === tab);
+          buttons[key].classList.toggle('border-blue-500', key === tab);
+          buttons[key].classList.toggle('text-gray-400', key !== tab);
+        }
+      });
+    }
+
+    function appendOutput(text) {
+      const output = document.getElementById('output-view-terminal');
+      if (!output) return;
+      const line = document.createElement('div');
+      line.textContent = String(text);
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearConsoleOutput() {
+      const output = document.getElementById('output-view-terminal');
+      if (output) output.innerHTML = '<div class="text-gray-500 font-sans italic">// Terminal cleared.</div>';
+    }
+
+    function toggleBottomPanel() {
+      const panel = document.getElementById('bottom-panel');
+      const icon = document.getElementById('bottom-panel-toggle-icon');
+      if (!panel) return;
+      bottomPanelCollapsed = !bottomPanelCollapsed;
+      panel.style.height = bottomPanelCollapsed ? '2rem' : '14rem';
+      if (icon) icon.className = bottomPanelCollapsed
+        ? 'fa-solid fa-chevron-up'
+        : 'fa-solid fa-chevron-down';
+    }
+
+    function renderTabs() {
+      const header = document.getElementById('tabs-header');
+      if (!header) return;
+      header.innerHTML = '';
+      openTabs.forEach(filename => {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = `h-full px-3 flex items-center gap-2 text-xs border-r border-editor-border ${filename === activeTabFile ? 'active-tab' : 'text-gray-400 hover:text-white'}`;
+        tab.innerHTML = `${getLanguageIconHtml(filename)}<span>${filename}</span><span class="text-gray-500 hover:text-red-400 ml-1" title="Close">×</span>`;
+        tab.addEventListener('click', (event) => {
+          if (event.target.tagName === 'SPAN' && event.target.textContent === '×') {
+            closeTab(filename);
+          } else {
+            openFileTab(filename);
+          }
+        });
+        header.appendChild(tab);
+      });
+    }
+
+    function closeTab(filename) {
+      if (!openTabs.includes(filename)) return;
+      if (openTabs.length === 1) return showToast('Keep at least one file tab open.', 'warning');
+      openTabs = openTabs.filter(f => f !== filename);
+      if (activeTabFile === filename) activeTabFile = openTabs[0];
+      renderTabs();
+      loadActiveFileIntoEditor();
+      renderFileExplorerTree();
+    }
+
+    function loadActiveFileIntoEditor() {
+      if (!editorInstance || !activeTabFile) return;
+      editorInstance.setOption('mode', getCodeMirrorMode(activeTabFile));
+      editorInstance.setValue(workspaceFiles[activeTabFile] ?? '');
+      editorInstance.clearHistory();
+      editorInstance.refresh();
+    }
+
+    function openFileTab(filename) {
+      if (!(filename in workspaceFiles)) return;
+      if (!openTabs.includes(filename)) openTabs.push(filename);
+      activeTabFile = filename;
+      renderTabs();
+      loadActiveFileIntoEditor();
+      renderFileExplorerTree();
+    }
+
+    function createNewFilePrompt() {
+      const filename = prompt('New file name:');
+      if (!filename) return;
+      const clean = filename.trim();
+      if (!clean) return;
+      if (workspaceFiles[clean] !== undefined) {
+        showToast('A file with that name already exists.', 'warning');
+        openFileTab(clean);
+        return;
+      }
+      workspaceFiles[clean] = '';
+      openFileTab(clean);
+      showToast(`Created ${clean}`, 'success');
+    }
+
+    function deleteFile(filename) {
+      if (!(filename in workspaceFiles)) return;
+      if (Object.keys(workspaceFiles).length <= 1) {
+        showToast('The workspace must contain at least one file.', 'warning');
+        return;
+      }
+      if (!confirm(`Delete ${filename}?`)) return;
+      delete workspaceFiles[filename];
+      openTabs = openTabs.filter(f => f !== filename);
+      if (activeTabFile === filename) activeTabFile = openTabs[0] || Object.keys(workspaceFiles)[0];
+      renderFileExplorerTree();
+      renderTabs();
+      loadActiveFileIntoEditor();
+      showToast(`Deleted ${filename}`, 'success');
+    }
+
+    function refreshFileExplorer() {
+      renderFileExplorerTree();
+      renderTabs();
+      if (editorInstance) editorInstance.refresh();
+      showToast('Explorer refreshed.', 'info');
+    }
+
+    function changeTheme(theme) {
+      if (!editorInstance) return;
+      const supported = ['dracula', 'monokai', 'nord', 'material-darker'];
+      editorInstance.setOption('theme', supported.includes(theme) ? theme : 'dracula');
+      localStorage.setItem('novastudio-theme', theme);
+    }
+
+    function toggleAiSidebar() {
+      const sidebar = document.getElementById('ai-sidebar');
+      if (sidebar) sidebar.classList.toggle('hidden');
+    }
+
+    function openGitHubModal() {
+      const modal = document.getElementById('github-modal');
+      if (modal) modal.classList.remove('hidden');
+      const pat = document.getElementById('gh-pat-input');
+      if (pat && !pat.value && githubToken) pat.value = githubToken;
+    }
+
+    function closeGitHubModal() {
+      const modal = document.getElementById('github-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function openCommitModal() {
+      if (!githubToken || !githubRepo) {
+        showToast('Connect a GitHub repository first.', 'warning');
+        openGitHubModal();
+        return;
+      }
+      const modal = document.getElementById('commit-modal');
+      const path = document.getElementById('commit-filepath');
+      const target = document.getElementById('commit-target-repo-text');
+      const message = document.getElementById('commit-message-input');
+      if (path) path.value = activeTabFile || '';
+      if (target) target.textContent = `Target: ${githubRepo} (${githubBranch})`;
+      if (message) message.value = `Update ${activeTabFile || 'workspace'}`;
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeCommitModal() {
+      const modal = document.getElementById('commit-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function getGitHubHeaders() {
+      return {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${githubToken}`,
+        'X-GitHub-Api-Version': '2022-11-28'
+      };
+    }
+
+    async function connectGitHubAccount() {
+      const input = document.getElementById('gh-pat-input');
+      const token = input?.value.trim();
+      if (!token) return showToast('Enter a GitHub Personal Access Token.', 'warning');
+
+      githubToken = token;
+      try {
+        const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+          headers: getGitHubHeaders()
+        });
+        if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
+        const repos = await response.json();
+        const select = document.getElementById('gh-repo-select');
+        if (select) {
+          select.innerHTML = '<option value="">-- Select a repository --</option>';
+          repos.forEach(repo => {
+            const option = document.createElement('option');
+            option.value = repo.full_name;
+            option.textContent = repo.full_name;
+            select.appendChild(option);
+          });
+        }
+        showToast(`Loaded ${repos.length} repositories.`, 'success');
+      } catch (error) {
+        githubToken = '';
+        showToast(`GitHub connection failed: ${error.message}`, 'error');
+      }
+    }
+
+    function onGitHubRepoSelectChange() {
+      const select = document.getElementById('gh-repo-select');
+      const manual = document.getElementById('gh-manual-repo');
+      if (select?.value && manual) manual.value = select.value;
+      if (select?.value) loadGitHubBranches(select.value);
+    }
+
+    async function loadGitHubBranches(repo) {
+      if (!githubToken || !repo) return;
+      const branchSelect = document.getElementById('gh-branch-select');
+      if (!branchSelect) return;
+      try {
+        const response = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, {
+          headers: getGitHubHeaders()
+        });
+        if (!response.ok) return;
+        const branches = await response.json();
+        branchSelect.innerHTML = '';
+        branches.forEach(branch => {
+          const option = document.createElement('option');
+          option.value = branch.name;
+          option.textContent = branch.name;
+          branchSelect.appendChild(option);
+        });
+        if (branches.some(b => b.name === 'main')) branchSelect.value = 'main';
+      } catch (error) {
+        console.warn('Could not load branches', error);
+      }
+    }
+
+    async function loadTargetGitHubRepository() {
+      const manual = document.getElementById('gh-manual-repo');
+      const select = document.getElementById('gh-repo-select');
+      const branchSelect = document.getElementById('gh-branch-select');
+      const repo = (manual?.value.trim() || select?.value || '').replace(/^https?:\\/\\/github\\.com\\//, '').replace(/\\/$/, '');
+      const branch = branchSelect?.value || 'main';
+      if (!repo || !repo.includes('/')) return showToast('Enter a repository as owner/repo.', 'warning');
+      if (!githubToken) return showToast('Connect a GitHub token first.', 'warning');
+
+      try {
+        const response = await fetch(`https://api.github.com/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`, {
+          headers: getGitHubHeaders()
+        });
+        if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
+        const tree = await response.json();
+        const blobs = (tree.tree || []).filter(item => item.type === 'blob');
+        const textFiles = blobs.filter(item => !/\\.(png|jpe?g|gif|webp|ico|pdf|zip|exe|dll|wasm|woff2?)$/i.test(item.path));
+        const loaded = {};
+        for (const item of textFiles.slice(0, 200)) {
+          const fileResponse = await fetch(`https://api.github.com/repos/${repo}/contents/${item.path}?ref=${encodeURIComponent(branch)}`, {
+            headers: getGitHubHeaders()
+          });
+          if (!fileResponse.ok) continue;
+          const file = await fileResponse.json();
+          if (file.encoding === 'base64' && typeof file.content === 'string') {
+            try {
+              loaded[item.path] = decodeURIComponent(escape(atob(file.content.replace(/\\s/g, ''))));
+            } catch {
+              loaded[item.path] = atob(file.content.replace(/\\s/g, ''));
+            }
+            fileGithubShas[item.path] = file.sha;
+          }
+        }
+        if (Object.keys(loaded).length === 0) throw new Error('No readable text files found.');
+        workspaceFiles = loaded;
+        githubRepo = repo;
+        githubBranch = branch;
+        activeTabFile = Object.keys(workspaceFiles)[0];
+        openTabs = Object.keys(workspaceFiles).slice(0, Math.min(5, Object.keys(workspaceFiles).length));
+        renderFileExplorerTree();
+        renderTabs();
+        loadActiveFileIntoEditor();
+        document.getElementById('active-repo-name').textContent = repo;
+        document.getElementById('active-repo-branch').textContent = branch;
+        document.getElementById('github-repo-badge').classList.remove('hidden');
+        document.getElementById('sidebar-repo-text').textContent = repo;
+        closeGitHubModal();
+        showToast(`Loaded ${Object.keys(loaded).length} files from ${repo}.`, 'success');
+      } catch (error) {
+        showToast(`Repository load failed: ${error.message}`, 'error');
+      }
+    }
+
+    async function executePushToGitHub() {
+      if (!githubToken || !githubRepo || !activeTabFile) {
+        return showToast('Connect a repository and open a file first.', 'warning');
+      }
+      const message = document.getElementById('commit-message-input')?.value.trim() || `Update ${activeTabFile}`;
+      const content = editorInstance ? editorInstance.getValue() : workspaceFiles[activeTabFile];
+      workspaceFiles[activeTabFile] = content;
+      const encoded = btoa(unescape(encodeURIComponent(content)));
+      const url = `https://api.github.com/repos/${githubRepo}/contents/${activeTabFile.split('/').map(encodeURIComponent).join('/')}`;
+      const body = { message, content: encoded, branch: githubBranch };
+      if (fileGithubShas[activeTabFile]) body.sha = fileGithubShas[activeTabFile];
+
+      const button = document.getElementById('execute-push-btn');
+      if (button) button.disabled = true;
+      try {
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: { ...getGitHubHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || `GitHub returned HTTP ${response.status}`);
+        fileGithubShas[activeTabFile] = result.content?.sha || fileGithubShas[activeTabFile];
+        document.getElementById('repo-dirty-indicator')?.classList.add('hidden');
+        closeCommitModal();
+        showToast(`Pushed ${activeTabFile} to ${githubRepo}.`, 'success');
+      } catch (error) {
+        showToast(`Push failed: ${error.message}`, 'error');
+      } finally {
+        if (button) button.disabled = false;
+      }
+    }
+
+    async function exportProjectZip() {
+      if (typeof JSZip === 'undefined') return showToast('ZIP library is still loading.', 'warning');
+      const zip = new JSZip();
+      Object.entries(workspaceFiles).forEach(([path, content]) => zip.file(path, content));
+      try {
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'novastudio-workspace.zip';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Workspace ZIP exported.', 'success');
+      } catch (error) {
+        showToast(`ZIP export failed: ${error.message}`, 'error');
+      }
+    }
+
+    function runWebSandbox() {
+      switchOutputTab('preview');
+      const iframe = document.getElementById('sandbox-iframe');
+      if (!iframe) return;
+      const active = activeTabFile.toLowerCase();
+      let html = workspaceFiles[activeTabFile] || '';
+      if (active.endsWith('.css')) {
+        html = `<!doctype html><html><head><style>${html}</style></head><body><div class="preview-root">CSS Preview</div></body></html>`;
+      } else if (active.endsWith('.js')) {
+        html = `<!doctype html><html><body><pre id="out"></pre><script>const originalLog=console.log;console.log=(...a)=>{document.getElementById('out').textContent += a.join(' ') + '\\n';};\n${html}</script></body></html>`;
+      }
+      iframe.srcdoc = html;
+    }
+
+    async function runPythonCode(code) {
+      switchOutputTab('terminal');
+      appendOutput(`=== Python (${activeTabFile}) ===`);
+      try {
+        if (!pyodideInstance) {
+          appendOutput('[Python] Loading Pyodide runtime...');
+          pyodideInstance = await loadPyodide();
+        }
+        pyodideInstance.setStdout({ batched: text => appendOutput(text) });
+        await pyodideInstance.runPythonAsync(code);
+        appendOutput('[Process completed with exit code 0]');
+      } catch (error) {
+        appendOutput(`[Python Error] ${error.message}`);
+      }
+    }
+
+    function runSqlDatabase(code) {
+      switchOutputTab('sqlgrid');
+      const container = document.getElementById('sql-table-container');
+      try {
+        if (typeof alasql === 'undefined') throw new Error('AlaSQL is not loaded yet.');
+        const statements = code.split(';').map(s => s.trim()).filter(Boolean);
+        let lastResult = [];
+        statements.forEach(statement => {
+          const result = alasql(statement);
+          if (Array.isArray(result)) lastResult = result;
+        });
+        if (!lastResult.length) {
+          container.textContent = 'SQL executed successfully. No rows returned.';
+          return;
+        }
+        const columns = Object.keys(lastResult[0]);
+        container.innerHTML = `<table class="w-full text-left text-xs"><thead><tr>${columns.map(c => `<th class="p-2 border-b border-gray-700 text-blue-300">${c}</th>`).join('')}</tr></thead><tbody>${lastResult.map(row => `<tr>${columns.map(c => `<td class="p-2 border-b border-gray-800">${String(row[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      } catch (error) {
+        container.textContent = `SQL Error: ${error.message}`;
+      }
+    }
+
+    function validateJson(code) {
+      switchOutputTab('terminal');
+      try {
+        const parsed = JSON.parse(code);
+        appendOutput(`[JSON] Valid. Root type: ${Array.isArray(parsed) ? 'array' : typeof parsed}.`);
+      } catch (error) {
+        appendOutput(`[JSON Error] ${error.message}`);
+      }
+    }
+
+    function initializeNovaStudio() {
+      const wrapper = document.getElementById('codemirror-wrapper');
+      if (!wrapper || typeof CodeMirror === 'undefined') {
+        showToast('CodeMirror failed to load.', 'error');
+        return;
+      }
+      editorInstance = CodeMirror(wrapper, {
+        value: workspaceFiles[activeTabFile] || '',
+        mode: getCodeMirrorMode(activeTabFile),
+        theme: localStorage.getItem('novastudio-theme') || 'dracula',
+        lineNumbers: true,
+        lineWrapping: false,
+        indentUnit: 2,
+        tabSize: 2,
+        autofocus: true
+      });
+      editorInstance.on('change', () => {
+        if (!activeTabFile) return;
+        workspaceFiles[activeTabFile] = editorInstance.getValue();
+        document.getElementById('repo-dirty-indicator')?.classList.remove('hidden');
+      });
+      renderFileExplorerTree();
+      renderTabs();
+      const themeSelector = document.getElementById('theme-selector');
+      if (themeSelector) themeSelector.value = localStorage.getItem('novastudio-theme') || 'dracula';
+      setTimeout(() => editorInstance.refresh(), 0);
+      showToast('NovaStudio ready.', 'success');
+    }
+
+    window.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        runActiveCode();
+      }
+    });
+
+    window.addEventListener('load', initializeNovaStudio);
+
     // Free AI Assistant Handler
     async function sendAiMessage() {
       const inputEl = document.getElementById('ai-user-input');
