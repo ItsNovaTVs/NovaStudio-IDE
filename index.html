@@ -750,7 +750,7 @@
       const select = $("gh-repo-select");
       const branchSelect = $("gh-branch-select");
       const repo = ((manual && manual.value) || (select && select.value) || "")
-        .trim().replace(/^https?:\\/\\/github\\.com\\//,"").replace(/\\/$/,"");
+        .trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,"");
       const branch = (branchSelect && branchSelect.value) || "main";
       if (!repo || repo.indexOf("/") === -1) {
         showToast("Enter a repository as owner/repo.", "warning");
@@ -971,8 +971,8 @@
       switchOutputTab("terminal");
       appendOutput("=== TypeScript (" + activeTabFile + ") ===");
       try {
-        const clean = code.replace(/interface\\s+\\w+\\s*\\{[\\s\\S]*?\\}/g,"")
-          .replace(/:\\s*[A-Za-z_$][\\w$]*(?:\\[\\])?/g,"");
+        const clean = code.replace(/interface\s+\w+\s*\{[\s\S]*?\}/g,"")
+          .replace(/:\s*[A-Za-z_$][\w$]*(?:\[\])?/g,"");
         const logs = [];
         const old = console.log;
         console.log = function(){logs.push(Array.from(arguments).join(" "));};
@@ -1005,7 +1005,7 @@
       const outputs = [];
       if (re) {
         let m;
-        while ((m = re.exec(code)) !== null) outputs.push(m[1].replace(/\\\\n/g,""));
+        while ((m = re.exec(code)) !== null) outputs.push(m[1].replace(/\\n/g,""));
       }
       if (outputs.length) outputs.forEach(appendOutput);
       else appendOutput("[" + (names[ext] || ext) + " Engine] Simulation completed.");
