@@ -61,7 +61,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
 
   <!-- External Execution Engines -->
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+  <!-- Pyodide is loaded lazily only when a Python file is run. -->
   <script src="https://cdn.jsdelivr.net/npm/alasql@4"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
@@ -192,7 +192,7 @@
       <!-- Footer Info -->
       <div class="p-2 border-t border-editor-border text-[11px] text-gray-500 flex justify-between items-center">
         <span>ItsNovaTVs Studio</span>
-        <span id="pyodide-status" class="text-amber-500 font-medium"><i class="fa-solid fa-spinner fa-spin"></i> Pyodide</span>
+        <span id="pyodide-status" class="text-gray-500 font-medium"><i class="fa-solid fa-circle"></i> Python idle</span>
       </div>
     </aside>
 
@@ -869,22 +869,53 @@
       iframe.srcdoc = html;
     }
 
+    function loadPyodideScript() {
+      return new Promise(function(resolve, reject) {
+        if (typeof loadPyodide === "function") { resolve(); return; }
+        const existing = document.getElementById("pyodide-script");
+        if (existing) {
+          existing.addEventListener("load", function(){resolve();}, {once:true});
+          existing.addEventListener("error", function(){reject(new Error("Could not load Pyodide."));}, {once:true});
+          return;
+        }
+        const script = document.createElement("script");
+        script.id = "pyodide-script";
+        script.src = "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js";
+        script.onload = function(){resolve();};
+        script.onerror = function(){reject(new Error("Could not load Pyodide."));};
+        document.head.appendChild(script);
+      });
+    }
+
     async function runPythonCode(code) {
       switchOutputTab("terminal");
       appendOutput("=== Python (" + activeTabFile + ") ===");
+      const status = $("pyodide-status");
       try {
         if (!pyodideInstance) {
-          appendOutput("[Python] Loading runtime...");
+          if (status) {
+            status.className = "text-amber-500 font-medium";
+            status.innerHTML = "<i class=\"fa-solid fa-spinner fa-spin\"></i> Loading Python";
+          }
+          appendOutput("[Python] Loading runtime for this run...");
+          await loadPyodideScript();
           pyodideInstance = await loadPyodide();
+        }
+        if (status) {
+          status.className = "text-green-500 font-medium";
+          status.innerHTML = "<i class=\"fa-solid fa-circle-check\"></i> Python ready";
         }
         pyodideInstance.setStdout({batched:function(text){appendOutput(text);}});
         await pyodideInstance.runPythonAsync(code);
         appendOutput("[Process completed with exit code 0]");
       } catch (err) {
+        if (status) {
+          status.className = "text-red-500 font-medium";
+          status.innerHTML = "<i class=\"fa-solid fa-circle-xmark\"></i> Python error";
+        }
         appendOutput("[Python Error] " + err.message);
       }
     }
-
     function runSqlDatabase(code) {
       switchOutputTab("sqlgrid");
       const container = $("sql-table-container");
