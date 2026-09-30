@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NovaStudio IDE - ItsNovaTVs</title>
+  <title>NovaStudio IDE - GitHub Repository Workbench</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -13,23 +13,14 @@
       theme: {
         extend: {
           colors: {
-            brand: {
-              50: '#f0f5ff',
-              100: '#e0ebff',
-              500: '#3b82f6',
-              600: '#2563eb',
-              700: '#1d4ed8',
-              800: '#1e40af',
-              900: '#0f172a',
-              950: '#080d1a'
-            },
             editor: {
               bg: '#1e1e2e',
               sidebar: '#181825',
               border: '#313244',
               activeTab: '#313244',
               tab: '#1e1e2e',
-              text: '#cdd6f4'
+              text: '#cdd6f4',
+              accent: '#3b82f6'
             }
           }
         }
@@ -58,12 +49,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/sql/sql.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
 
-  <!-- External Libraries for Executions -->
-  <!-- Pyodide Python Engine -->
+  <!-- External Execution Engines -->
   <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
-  <!-- AlaSQL SQL Engine -->
   <script src="https://cdn.jsdelivr.net/npm/alasql@4"></script>
-  <!-- JSZip for exporting ZIP archives -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <style>
@@ -73,7 +61,6 @@
       font-size: 14px;
       line-height: 1.5;
     }
-    /* Custom Scrollbars */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -93,956 +80,948 @@
       border-top: 2px solid #3b82f6 !important;
       color: #ffffff !important;
     }
+    .file-tree-item:hover {
+      background-color: #313244;
+    }
   </style>
 </head>
 <body class="h-full bg-editor-bg text-editor-text font-sans antialiased overflow-hidden flex flex-col select-none">
 
-  <!-- Top Application Bar -->
-  <header class="h-12 bg-editor-sidebar border-b border-editor-border flex items-center justify-between px-4 z-20">
+  <header class="h-12 bg-editor-sidebar border-b border-editor-border flex items-center justify-between px-3 z-20 shrink-0">
+    <!-- Brand / Title -->
     <div class="flex items-center space-x-3">
       <div class="flex items-center space-x-2">
         <i class="fa-solid fa-code text-blue-500 text-xl"></i>
-        <span class="font-bold text-white tracking-wide text-lg">NovaStudio <span class="text-xs bg-blue-600/30 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">IDE</span></span>
+        <span class="font-bold text-white tracking-wide text-base sm:text-lg">NovaStudio <span class="text-xs bg-blue-600/30 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">IDE</span></span>
       </div>
-      <span class="text-xs text-gray-500 hidden sm:inline">|</span>
-      <span class="text-xs text-gray-400 hidden sm:inline flex items-center gap-1">
-        <i class="fa-brands fa-github text-gray-400"></i> ItsNovaTVs/NovaStudio-IDE
-      </span>
+      <span class="text-xs text-gray-500 hidden md:inline">|</span>
+      <!-- GitHub Active Repo Tag -->
+      <div id="github-repo-badge" class="hidden md:flex items-center space-x-1.5 text-xs bg-gray-800/80 px-2.5 py-1 rounded-md border border-gray-700 text-gray-300">
+        <i class="fa-brands fa-github text-white"></i>
+        <span id="active-repo-name" class="font-mono text-blue-400 font-medium">No Repo Linked</span>
+        <span id="active-repo-branch" class="bg-gray-700 text-gray-300 px-1.5 py-0.2 rounded text-[10px]">main</span>
+        <span id="repo-dirty-indicator" class="hidden w-2 h-2 rounded-full bg-amber-400" title="Uncommitted changes"></span>
+      </div>
     </div>
 
-    <!-- Action Controls -->
-    <div class="flex items-center space-x-2 sm:space-x-3">
-      <button onclick="executeCode()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 shadow-lg shadow-emerald-900/20 transition-all">
+    <!-- Action Buttons -->
+    <div class="flex items-center space-x-2">
+      <!-- Run Code Button -->
+      <button id="run-btn" onclick="runActiveCode()" class="flex items-center space-x-1.5 bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold shadow transition-all active:scale-95">
         <i class="fa-solid fa-play"></i>
-        <span>Run Code</span>
+        <span class="hidden sm:inline">Run Code</span>
       </button>
 
-      <button onclick="formatActiveFile()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center space-x-1 transition-all">
-        <i class="fa-solid fa-align-left"></i>
-        <span class="hidden md:inline">Format</span>
+      <!-- GitHub Link & Commit Buttons -->
+      <button onclick="openGitHubModal()" class="flex items-center space-x-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 px-3 py-1.5 rounded-md text-xs font-medium transition-all">
+        <i class="fa-brands fa-github text-sm text-purple-400"></i>
+        <span class="hidden sm:inline">GitHub Sync</span>
       </button>
 
-      <button onclick="exportProjectZip()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center space-x-1 transition-all" title="Export as ZIP archive">
+      <button id="github-commit-btn" onclick="openCommitModal()" class="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold shadow transition-all active:scale-95 disabled:opacity-50">
+        <i class="fa-solid fa-code-commit"></i>
+        <span class="hidden sm:inline">Commit & Push</span>
+      </button>
+
+      <!-- Export ZIP -->
+      <button onclick="exportProjectZip()" title="Export Workspace as ZIP" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-md text-xs transition-all">
         <i class="fa-solid fa-file-zipper"></i>
-        <span class="hidden md:inline">Export ZIP</span>
       </button>
-
-      <button onclick="toggleSidebar('ai')" class="bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600 hover:text-white px-3 py-1.5 rounded-md text-xs font-medium flex items-center space-x-1.5 transition-all">
-        <i class="fa-solid fa-wand-magic-sparkles"></i>
-        <span>Nova AI</span>
-      </button>
-
-      <div class="h-4 w-[1px] bg-gray-700"></div>
 
       <!-- Theme Switcher -->
-      <select id="themeSelect" onchange="changeTheme(this.value)" class="bg-gray-800 text-xs text-gray-300 border border-gray-700 rounded px-2 py-1 outline-none focus:border-blue-500">
-        <option value="dracula">Dracula Theme</option>
-        <option value="monokai">Monokai Theme</option>
-        <option value="material-darker">Material Dark</option>
-        <option value="nord">Nord Theme</option>
+      <select id="theme-selector" onchange="changeTheme(this.value)" class="bg-gray-800 text-xs text-gray-300 border border-gray-700 rounded-md px-2 py-1 focus:outline-none">
+        <option value="dracula">Dracula</option>
+        <option value="monokai">Monokai</option>
+        <option value="nord">Nord</option>
+        <option value="material-darker">Material Darker</option>
       </select>
+
+      <!-- AI Assistant Toggle Button -->
+      <button onclick="toggleAiSidebar()" class="p-1.5 bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 border border-purple-500/30 rounded-md text-xs transition-all flex items-center gap-1">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <span class="hidden md:inline text-xs font-medium">Nova AI</span>
+      </button>
     </div>
   </header>
 
-  <!-- Main IDE Container -->
   <div class="flex-1 flex overflow-hidden relative">
-
-    <!-- Left Activity Sidebar Toggle -->
-    <aside class="w-12 bg-editor-sidebar border-r border-editor-border flex flex-col items-center py-3 space-y-4 text-gray-400 z-10">
-      <button onclick="toggleSidebar('files')" id="btn-sidebar-files" class="p-2.5 rounded-lg hover:text-white hover:bg-gray-800/80 transition-all text-blue-400 bg-gray-800" title="File Explorer">
-        <i class="fa-solid fa-folder-tree text-lg"></i>
-      </button>
-      <button onclick="toggleSidebar('ai')" id="btn-sidebar-ai" class="p-2.5 rounded-lg hover:text-white hover:bg-gray-800/80 transition-all relative" title="Nova AI Assistant">
-        <i class="fa-solid fa-robot text-lg"></i>
-      </button>
-      <button onclick="toggleSidebar('github')" id="btn-sidebar-github" class="p-2.5 rounded-lg hover:text-white hover:bg-gray-800/80 transition-all" title="GitHub Repo Integration">
-        <i class="fa-brands fa-github text-lg"></i>
-      </button>
-      <div class="flex-1"></div>
-      <button onclick="showSettingsModal()" class="p-2.5 rounded-lg hover:text-white hover:bg-gray-800/80 transition-all" title="Settings">
-        <i class="fa-solid fa-gear text-lg"></i>
-      </button>
-    </aside>
-
-    <!-- File Explorer Panel -->
-    <div id="panel-files" class="w-64 bg-editor-sidebar border-r border-editor-border flex flex-col">
-      <div class="p-3 border-b border-editor-border flex items-center justify-between">
+    
+    <!-- Left Sidebar: File Explorer & GitHub Tree -->
+    <aside id="sidebar" class="w-64 bg-editor-sidebar border-r border-editor-border flex flex-col shrink-0">
+      <!-- Sidebar Header / Actions -->
+      <div class="p-2.5 border-b border-editor-border flex items-center justify-between">
         <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Explorer</span>
         <div class="flex items-center space-x-1">
-          <button onclick="promptNewFile()" class="p-1 hover:bg-gray-700 rounded text-gray-300 text-xs" title="New File">
+          <button onclick="createNewFilePrompt()" title="New File" class="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800 text-xs">
             <i class="fa-solid fa-file-circle-plus"></i>
           </button>
-          <button onclick="promptNewFolder()" class="p-1 hover:bg-gray-700 rounded text-gray-300 text-xs" title="New Folder">
-            <i class="fa-solid fa-folder-plus"></i>
+          <button onclick="openGitHubModal()" title="Link Repository" class="p-1 text-gray-400 hover:text-purple-400 rounded hover:bg-gray-800 text-xs">
+            <i class="fa-brands fa-github"></i>
+          </button>
+          <button onclick="refreshFileExplorer()" title="Refresh Explorer" class="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800 text-xs">
+            <i class="fa-solid fa-arrows-rotate"></i>
           </button>
         </div>
       </div>
-      
-      <!-- File Tree Listing -->
-      <div id="fileTreeContainer" class="flex-1 overflow-y-auto p-2 text-sm space-y-1">
-        <!-- Dynamic File Tree Rendered Here -->
-      </div>
 
-      <!-- Repo Info Widget -->
-      <div class="p-3 border-t border-editor-border bg-gray-900/40 text-xs text-gray-400">
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-semibold text-gray-300">Target Repo</span>
-          <span class="text-emerald-400 text-[10px]">Active</span>
+      <!-- Quick Repository Status Banner -->
+      <div id="sidebar-repo-info" class="bg-gray-900/60 p-2 border-b border-editor-border flex items-center justify-between text-xs text-gray-400">
+        <div class="flex items-center space-x-1.5 overflow-hidden">
+          <i class="fa-solid fa-code-branch text-blue-400"></i>
+          <span id="sidebar-repo-text" class="truncate text-gray-300 font-mono">Local Workspace</span>
         </div>
-        <p class="truncate font-mono text-[11px] text-gray-400">ItsNovaTVs/NovaStudio-IDE</p>
-      </div>
-    </div>
-
-    <!-- AI Panel Sidebar (Hidden by default) -->
-    <div id="panel-ai" class="w-80 bg-editor-sidebar border-r border-editor-border flex-col hidden">
-      <div class="p-3 border-b border-editor-border flex items-center justify-between bg-purple-950/30">
-        <div class="flex items-center space-x-2">
-          <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
-          <span class="text-xs font-bold uppercase tracking-wider text-purple-200">Nova AI Assistant</span>
-        </div>
-        <button onclick="toggleSidebar('files')" class="text-gray-400 hover:text-white">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <button onclick="openGitHubModal()" class="text-[10px] text-blue-400 hover:underline">Change</button>
       </div>
 
-      <!-- Quick Action Commands -->
-      <div class="p-2 border-b border-editor-border grid grid-cols-2 gap-1.5 text-xs">
-        <button onclick="askAI('Explain the code in the current active file line by line.')" class="bg-gray-800 hover:bg-purple-900/40 border border-gray-700 p-1.5 rounded text-left text-gray-300 flex items-center space-x-1.5">
-          <i class="fa-solid fa-book text-purple-400"></i>
-          <span>Explain Code</span>
-        </button>
-        <button onclick="askAI('Find potential bugs, syntax issues, or logic errors in this file and suggest fixes.')" class="bg-gray-800 hover:bg-purple-900/40 border border-gray-700 p-1.5 rounded text-left text-gray-300 flex items-center space-x-1.5">
-          <i class="fa-solid fa-bug-slash text-rose-400"></i>
-          <span>Fix Bugs</span>
-        </button>
-        <button onclick="askAI('Refactor this code for optimal readability, performance, and best practices.')" class="bg-gray-800 hover:bg-purple-900/40 border border-gray-700 p-1.5 rounded text-left text-gray-300 flex items-center space-x-1.5">
-          <i class="fa-solid fa-code-merge text-blue-400"></i>
-          <span>Refactor</span>
-        </button>
-        <button onclick="askAI('Add detailed, professional inline comments and docstrings to this code.')" class="bg-gray-800 hover:bg-purple-900/40 border border-gray-700 p-1.5 rounded text-left text-gray-300 flex items-center space-x-1.5">
-          <i class="fa-solid fa-comment-dots text-emerald-400"></i>
-          <span>Add Comments</span>
-        </button>
+      <!-- File List Container -->
+      <div id="file-explorer-tree" class="flex-1 overflow-y-auto p-2 space-y-0.5 text-xs">
+        <!-- Dynamically Rendered File Tree Items -->
       </div>
 
-      <!-- Chat Stream Window -->
-      <div id="aiChatStream" class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-        <div class="bg-purple-950/20 border border-purple-500/20 p-2.5 rounded-lg text-purple-200">
-          <p class="font-semibold mb-1"><i class="fa-solid fa-robot mr-1"></i> Hello, ItsNovaTVs!</p>
-          <p class="text-gray-300 leading-relaxed">I am your integrated Gemini AI assistant. Ask me questions about your Java, Python, SQL, or Web code!</p>
-        </div>
+      <!-- Footer Info -->
+      <div class="p-2 border-t border-editor-border text-[11px] text-gray-500 flex justify-between items-center">
+        <span>ItsNovaTVs Studio</span>
+        <span id="pyodide-status" class="text-amber-500 font-medium"><i class="fa-solid fa-spinner fa-spin"></i> Pyodide</span>
       </div>
+    </aside>
 
-      <!-- Input box -->
-      <div class="p-2 border-t border-editor-border bg-editor-sidebar">
-        <form onsubmit="handleAISubmit(event)" class="flex space-x-1.5">
-          <input type="text" id="aiInput" placeholder="Ask AI about your code..." class="flex-1 bg-gray-900 border border-gray-700 text-xs text-gray-200 rounded px-2.5 py-2 outline-none focus:border-purple-500">
-          <button type="submit" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-xs">
-            <i class="fa-solid fa-paper-plane"></i>
-          </button>
-        </form>
-      </div>
-    </div>
-
-    <!-- GitHub Integration Panel Sidebar -->
-    <div id="panel-github" class="w-80 bg-editor-sidebar border-r border-editor-border flex-col hidden p-3 space-y-4">
-      <div class="flex items-center justify-between border-b border-editor-border pb-2">
-        <span class="text-xs font-bold uppercase tracking-wider text-gray-300"><i class="fa-brands fa-github mr-1"></i> GitHub Integration</span>
-        <button onclick="toggleSidebar('files')" class="text-gray-400 hover:text-white">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <div class="space-y-3 text-xs">
-        <div>
-          <label class="block text-gray-400 mb-1">Target Repository Owner</label>
-          <input type="text" id="ghOwner" value="ItsNovaTVs" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-gray-200 outline-none">
-        </div>
-        <div>
-          <label class="block text-gray-400 mb-1">Repository Name</label>
-          <input type="text" id="ghRepo" value="NovaStudio-IDE" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-gray-200 outline-none">
-        </div>
-        <div>
-          <label class="block text-gray-400 mb-1">Personal Access Token (PAT)</label>
-          <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-gray-200 outline-none">
-          <p class="text-[10px] text-gray-500 mt-1">Stored securely in local session memory.</p>
-        </div>
-
-        <button onclick="syncToGithub()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-semibold text-xs transition-all shadow">
-          <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Sync Workspace to GitHub
-        </button>
-      </div>
-    </div>
-
-    <!-- Editor & Output Main Workspace -->
+    <!-- Center Workspace: Editor Tabs + CodeMirror + Execution Output -->
     <main class="flex-1 flex flex-col min-w-0 bg-editor-bg">
-      <!-- File Tabs Header -->
-      <div id="tabBar" class="h-9 bg-editor-sidebar border-b border-editor-border flex items-center overflow-x-auto text-xs">
-        <!-- Dynamic Tabs Rendered Here -->
+      
+      <!-- Tab Bar -->
+      <div id="tabs-header" class="h-9 bg-editor-sidebar border-b border-editor-border flex items-center overflow-x-auto select-none shrink-0 scrollbar-none">
+        <!-- Dynamically Populated Open File Tabs -->
       </div>
 
-      <!-- Editor Window Frame -->
-      <div class="flex-1 flex flex-col md:flex-row min-h-0 relative">
+      <!-- CodeMirror Editor Container -->
+      <div class="flex-1 relative overflow-hidden">
+        <div id="codemirror-wrapper" class="absolute inset-0"></div>
+      </div>
+
+      <!-- Resizable / Toggleable Bottom Panel (Output / Terminal / Web Preview / SQL Grid) -->
+      <div id="bottom-panel" class="h-56 bg-editor-sidebar border-t border-editor-border flex flex-col shrink-0">
         
-        <!-- Code Editor Area -->
-        <div class="flex-1 flex flex-col min-h-0 relative">
-          <div id="editorContainer" class="w-full h-full"></div>
-        </div>
-
-        <!-- Output / Terminal Panel (Split Screen) -->
-        <div id="outputSplitPane" class="w-full md:w-1/2 border-t md:border-t-0 md:border-l border-editor-border bg-gray-950 flex flex-col min-h-0">
-          
-          <!-- Output Header Tabs -->
-          <div class="h-9 bg-editor-sidebar border-b border-editor-border flex items-center justify-between px-3 text-xs">
-            <div class="flex space-x-2">
-              <button onclick="switchOutputTab('terminal')" id="outtab-terminal" class="px-2.5 py-1 rounded text-gray-300 font-semibold bg-gray-800">
-                <i class="fa-solid fa-terminal text-emerald-400 mr-1"></i> Console
-              </button>
-              <button onclick="switchOutputTab('preview')" id="outtab-preview" class="px-2.5 py-1 rounded text-gray-400 font-semibold hover:text-gray-200">
-                <i class="fa-solid fa-globe text-blue-400 mr-1"></i> Web Preview
-              </button>
-              <button onclick="switchOutputTab('sql')" id="outtab-sql" class="px-2.5 py-1 rounded text-gray-400 font-semibold hover:text-gray-200">
-                <i class="fa-solid fa-database text-amber-400 mr-1"></i> SQL Data Grid
-              </button>
-            </div>
-
-            <button onclick="clearTerminal()" class="text-gray-500 hover:text-gray-300 text-xs" title="Clear Console">
-              <i class="fa-solid fa-ban"></i>
+        <!-- Bottom Panel Navigation Header -->
+        <div class="h-8 bg-gray-900/90 border-b border-editor-border px-3 flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2 text-xs">
+            <button onclick="switchOutputTab('terminal')" id="tab-btn-terminal" class="px-2.5 py-1 text-blue-400 font-semibold border-b-2 border-blue-500 flex items-center gap-1.5">
+              <i class="fa-solid fa-terminal"></i> Output / Terminal
+            </button>
+            <button onclick="switchOutputTab('preview')" id="tab-btn-preview" class="px-2.5 py-1 text-gray-400 hover:text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-globe"></i> Web Preview
+            </button>
+            <button onclick="switchOutputTab('sqlgrid')" id="tab-btn-sqlgrid" class="px-2.5 py-1 text-gray-400 hover:text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-table"></i> SQL Results
             </button>
           </div>
-
-          <!-- Output Tab Content Panes -->
-          <div class="flex-1 relative overflow-hidden">
-            
-            <!-- 1. Console / Terminal -->
-            <div id="pane-terminal" class="absolute inset-0 p-3 font-mono text-xs overflow-y-auto space-y-1 text-gray-300 bg-gray-950">
-              <div class="text-gray-500 italic">NovaStudio Engine initialized. Press "Run Code" to execute active file script.</div>
-            </div>
-
-            <!-- 2. HTML/JS Live Preview Frame -->
-            <div id="pane-preview" class="absolute inset-0 hidden bg-white">
-              <iframe id="previewIframe" class="w-full h-full border-none"></iframe>
-            </div>
-
-            <!-- 3. SQL Data Visualizer Grid -->
-            <div id="pane-sql" class="absolute inset-0 hidden p-3 overflow-auto bg-gray-900 text-xs">
-              <div id="sqlResultContainer" class="text-gray-400 italic">Run a SQL query to inspect database result tables here.</div>
-            </div>
-
+          
+          <div class="flex items-center space-x-2 text-xs">
+            <button onclick="clearConsoleOutput()" title="Clear Terminal" class="text-gray-400 hover:text-white">
+              <i class="fa-solid fa-ban"></i>
+            </button>
+            <button onclick="toggleBottomPanel()" title="Toggle Panel" class="text-gray-400 hover:text-white">
+              <i class="fa-solid fa-chevron-down" id="bottom-panel-toggle-icon"></i>
+            </button>
           </div>
         </div>
 
+        <!-- Panel Views -->
+        <div class="flex-1 relative overflow-hidden bg-gray-950 p-2 font-mono text-xs">
+          <!-- 1. Console Terminal -->
+          <div id="output-view-terminal" class="absolute inset-0 overflow-auto p-3 text-gray-200 whitespace-pre-wrap leading-relaxed">
+            <div class="text-gray-500 font-sans italic">// NovaStudio IDE Runtime Terminal ready. Click 'Run Code' or press Ctrl+Enter to execute.</div>
+          </div>
+
+          <!-- 2. Web Iframe Preview Sandbox -->
+          <div id="output-view-preview" class="absolute inset-0 hidden bg-white">
+            <iframe id="sandbox-iframe" class="w-full h-full border-none"></iframe>
+          </div>
+
+          <!-- 3. SQL Visual Grid View -->
+          <div id="output-view-sqlgrid" class="absolute inset-0 hidden overflow-auto p-2 bg-gray-900">
+            <div id="sql-table-container" class="text-gray-400 italic">No SQL queries executed yet. Run SQL statements to display tabular results.</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside id="ai-sidebar" class="w-80 bg-editor-sidebar border-l border-editor-border flex flex-col shrink-0 hidden">
+      <!-- AI Sidebar Header -->
+      <div class="p-3 border-b border-editor-border flex items-center justify-between bg-purple-950/20">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
+          <span class="font-bold text-sm text-purple-200">Nova AI Assistant</span>
+        </div>
+        <button onclick="toggleAiSidebar()" class="text-gray-400 hover:text-white text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
 
-      <!-- IDE Status Footer -->
-      <footer class="h-6 bg-editor-sidebar border-t border-editor-border px-3 flex items-center justify-between text-[11px] text-gray-400">
-        <div class="flex items-center space-x-3">
-          <span class="flex items-center gap-1 text-emerald-400"><i class="fa-solid fa-circle text-[8px]"></i> Ready</span>
-          <span id="statusFileExt" class="font-mono text-gray-300">HTML</span>
-          <span id="statusLineCol">Ln 1, Col 1</span>
+      <!-- Quick AI Action Tools -->
+      <div class="p-2 border-b border-editor-border bg-gray-900/40 grid grid-cols-2 gap-1.5 text-[11px]">
+        <button onclick="runAiQuickAction('explain')" class="bg-gray-800 hover:bg-purple-900/50 border border-gray-700 text-gray-300 p-1.5 rounded flex items-center justify-center gap-1 transition">
+          <i class="fa-solid fa-book-open text-blue-400"></i> Explain Code
+        </button>
+        <button onclick="runAiQuickAction('fix')" class="bg-gray-800 hover:bg-purple-900/50 border border-gray-700 text-gray-300 p-1.5 rounded flex items-center justify-center gap-1 transition">
+          <i class="fa-solid fa-bug-slash text-red-400"></i> Fix Bugs
+        </button>
+        <button onclick="runAiQuickAction('refactor')" class="bg-gray-800 hover:bg-purple-900/50 border border-gray-700 text-gray-300 p-1.5 rounded flex items-center justify-center gap-1 transition">
+          <i class="fa-solid fa-wand-magic text-emerald-400"></i> Refactor
+        </button>
+        <button onclick="runAiQuickAction('tests')" class="bg-gray-800 hover:bg-purple-900/50 border border-gray-700 text-gray-300 p-1.5 rounded flex items-center justify-center gap-1 transition">
+          <i class="fa-solid fa-vial text-amber-400"></i> Unit Tests
+        </button>
+      </div>
+
+      <!-- AI Chat Stream Area -->
+      <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-3 space-y-3 text-xs leading-relaxed">
+        <div class="bg-purple-950/30 border border-purple-800/40 p-2.5 rounded-lg text-purple-200">
+          👋 Hi! I'm <strong>Nova AI</strong> powered by Gemini 3. Ask me anything about your Java, Python, SQL, or Web project code!
         </div>
-        <div class="flex items-center space-x-3">
-          <span>UTF-8</span>
-          <span class="text-blue-400 font-semibold">Gemini 3 Flash</span>
-        </div>
-      </footer>
-    </main>
+      </div>
+
+      <!-- AI Chat Prompt Input -->
+      <div class="p-2 border-t border-editor-border bg-gray-900/60 flex items-center space-x-1.5">
+        <input type="text" id="ai-user-input" onkeydown="if(event.key==='Enter') sendAiMessage()" placeholder="Ask Nova AI..." class="flex-1 bg-gray-800 text-xs text-white px-2.5 py-1.5 rounded border border-gray-700 focus:outline-none focus:border-purple-500">
+        <button onclick="sendAiMessage()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-xs font-semibold">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
+    </aside>
+
   </div>
 
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-    <div class="bg-editor-sidebar border border-editor-border rounded-lg w-96 p-4 space-y-4 text-xs shadow-2xl">
-      <div class="flex items-center justify-between border-b border-editor-border pb-2">
-        <h3 class="font-bold text-white text-sm">IDE Configuration Settings</h3>
-        <button onclick="hideSettingsModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+  <!-- GitHub Sync & Link Repo Modal -->
+  <div id="github-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-editor-sidebar border border-editor-border w-full max-w-md rounded-xl shadow-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-editor-border pb-3">
+        <div class="flex items-center space-x-2">
+          <i class="fa-brands fa-github text-2xl text-purple-400"></i>
+          <div>
+            <h3 class="font-bold text-white text-base">GitHub Repository Integration</h3>
+            <p class="text-xs text-gray-400">Link any public or private repo using a PAT</p>
+          </div>
+        </div>
+        <button onclick="closeGitHubModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
 
-      <div class="space-y-3">
-        <div>
-          <label class="block text-gray-300 mb-1">Font Size (px)</label>
-          <input type="number" id="settingFontSize" value="14" onchange="applySettings()" class="w-full bg-gray-900 border border-gray-700 rounded p-1.5 text-gray-200">
+      <!-- Step 1: Personal Access Token -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-gray-300 flex justify-between">
+          <span>Personal Access Token (PAT)</span>
+          <a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" class="text-blue-400 text-[10px] hover:underline">Generate PAT <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+        </label>
+        <div class="flex items-center space-x-1.5">
+          <input type="password" id="gh-pat-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" class="flex-1 bg-gray-900 text-xs text-white px-3 py-2 rounded border border-gray-700 focus:outline-none focus:border-blue-500 font-mono">
+          <button onclick="connectGitHubAccount()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-xs font-semibold shrink-0">
+            Fetch Repos
+          </button>
         </div>
-        <div>
-          <label class="block text-gray-300 mb-1">Tab Indent Size</label>
-          <select id="settingTabSize" onchange="applySettings()" class="w-full bg-gray-900 border border-gray-700 rounded p-1.5 text-gray-200">
-            <option value="2">2 Spaces</option>
-            <option value="4" selected>4 Spaces</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-gray-300 mb-1">Gemini API Key (Optional)</label>
-          <input type="password" id="settingApiKey" placeholder="AIzaSy..." class="w-full bg-gray-900 border border-gray-700 rounded p-1.5 text-gray-200">
-        </div>
+        <p class="text-[10px] text-gray-500">Token is stored locally in your browser memory and never sent to third-party servers.</p>
       </div>
 
-      <div class="pt-2 flex justify-end">
-        <button onclick="hideSettingsModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded font-semibold">Save & Close</button>
+      <!-- Step 2: Repository Selector -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-gray-300">Select Repository or Enter target (owner/repo)</label>
+        <select id="gh-repo-select" onchange="onGitHubRepoSelectChange()" class="w-full bg-gray-900 text-xs text-white p-2 rounded border border-gray-700 focus:outline-none focus:border-blue-500">
+          <option value="">-- Connect Token above or select repo --</option>
+        </select>
+        <input type="text" id="gh-manual-repo" placeholder="e.g. ItsNovaTVs/NovaStudio-IDE" class="w-full bg-gray-900 text-xs text-white p-2 rounded border border-gray-700 focus:outline-none focus:border-blue-500 font-mono">
+      </div>
+
+      <!-- Step 3: Branch Selector -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-gray-300">Branch</label>
+        <select id="gh-branch-select" class="w-full bg-gray-900 text-xs text-white p-2 rounded border border-gray-700 focus:outline-none focus:border-blue-500">
+          <option value="main">main</option>
+          <option value="master">master</option>
+        </select>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="pt-2 flex items-center justify-end space-x-2 border-t border-editor-border">
+        <button onclick="closeGitHubModal()" class="px-3 py-1.5 bg-gray-800 text-gray-300 hover:bg-gray-700 rounded text-xs">Cancel</button>
+        <button onclick="loadTargetGitHubRepository()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold shadow">
+          <i class="fa-solid fa-download mr-1"></i> Load Repo into Workspace
+        </button>
       </div>
     </div>
   </div>
 
-  <script>
-    // Default initial workspace files
-    const defaultWorkspace = [
-      {
-        id: '1',
-        name: 'index.html',
-        language: 'htmlmixed',
-        content: `<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding: 40px; }
-    h1 { color: #3b82f6; }
-    button { background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    button:hover { background: #1d4ed8; }
-  </style>
-</head>
-<body>
-  <h1>🚀 Welcome to NovaStudio IDE!</h1>
-  <p>An interactive browser development suite built for <strong>ItsNovaTVs</strong>.</p>
-  <button onclick="greet()">Click Me!</button>
+  <!-- Commit & Push Modal -->
+  <div id="commit-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-editor-sidebar border border-editor-border w-full max-w-md rounded-xl shadow-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-editor-border pb-3">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-code-commit text-2xl text-blue-400"></i>
+          <div>
+            <h3 class="font-bold text-white text-base">Commit & Push to GitHub</h3>
+            <p id="commit-target-repo-text" class="text-xs text-blue-400 font-mono">Target: owner/repo (main)</p>
+          </div>
+        </div>
+        <button onclick="closeCommitModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-gray-300">Active File Path</label>
+        <input type="text" id="commit-filepath" readonly class="w-full bg-gray-900/80 text-xs text-gray-400 p-2 rounded border border-gray-800 font-mono">
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-gray-300">Commit Message</label>
+        <textarea id="commit-message-input" rows="3" placeholder="Update application logic..." class="w-full bg-gray-900 text-xs text-white p-2.5 rounded border border-gray-700 focus:outline-none focus:border-blue-500 font-sans"></textarea>
+      </div>
+
+      <div class="pt-2 flex items-center justify-end space-x-2 border-t border-editor-border">
+        <button onclick="closeCommitModal()" class="px-3 py-1.5 bg-gray-800 text-gray-300 hover:bg-gray-700 rounded text-xs">Cancel</button>
+        <button id="execute-push-btn" onclick="executePushToGitHub()" class="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold shadow">
+          <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Push Changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UI Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
   <script>
-    function greet() {
-      console.log('Button clicked! Greeting from NovaStudio Sandbox.');
-      alert('Hello from NovaStudio IDE sandbox!');
-    }
-  <\/script>
-</body>
-</html>`
-      },
-      {
-        id: '2',
-        name: 'script.py',
-        language: 'python',
-        content: `# Python WebAssembly Execution Test
-import math
-
-def calculate_stats(numbers):
-    total = sum(numbers)
-    count = len(numbers)
-    mean = total / count
-    sq_diff = sum((x - mean) ** 2 for x in numbers)
-    std_dev = math.sqrt(sq_diff / count)
-    return mean, std_dev
-
-data = [12, 45, 67, 89, 23, 56, 90, 34]
-mean, std_dev = calculate_stats(data)
-
-print("=== NovaStudio Python Engine ===")
-print(f"Dataset: {data}")
-print(f"Mean Average: {mean:.2f}")
-print(f"Standard Deviation: {std_dev:.2f}")
-`
-      },
-      {
-        id: '3',
-        name: 'database.sql',
-        language: 'sql',
-        content: `-- SQL Query & Table Manipulation Test
-CREATE TABLE developers (
-    id INT PRIMARY KEY,
-    name STRING,
-    role STRING,
-    repository STRING
-);
-
-INSERT INTO developers VALUES 
-(1, 'ItsNovaTVs', 'Lead Developer', 'NovaStudio-IDE'),
-(2, 'Alex Code', 'Frontend Dev', 'WebComponents'),
-(3, 'Sarah Data', 'Database Architect', 'QueryEngine');
-
-SELECT * FROM developers WHERE id >= 1 ORDER BY name ASC;
-`
-      },
-      {
-        id: '4',
-        name: 'Main.java',
-        language: 'clike',
-        content: `public class Main {
-    public static void main(String[] args) {
-        System.out.println("Executing Java Application on NovaStudio IDE...");
-        
-        String developer = "ItsNovaTVs";
-        int repoStars = 150;
-        
-        System.out.println("Developer: " + developer);
-        System.out.println("Repository Stars: " + repoStars);
-        
-        for (int i = 1; i <= 3; i++) {
-            System.out.println("Task iteration " + i + " completed.");
-        }
-    }
-}`
-      },
-      {
-        id: '5',
-        name: 'config.json',
-        language: 'javascript',
-        content: `{
-  "projectName": "NovaStudio-IDE",
-  "owner": "ItsNovaTVs",
-  "version": "1.0.0",
-  "features": [
-    "Multi-language code execution",
-    "In-browser Pyodide & AlaSQL",
-    "Gemini AI Assistant Integration",
-    "GitHub Sync"
-  ]
-}`
-      }
-    ];
-
-    let files = JSON.parse(localStorage.getItem('novastudio_files')) || defaultWorkspace;
-    let activeFileId = files[0].id;
-    let editor = null;
+    // Global Application State
+    let editorInstance = null;
     let pyodideInstance = null;
-    let isPyodideLoading = false;
+    
+    // File Management State
+    let workspaceFiles = {
+      'index.html': `<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: sans-serif; text-align: center; padding: 50px; background: #0f172a; color: #f8fafc; }\n    h1 { color: #38bdf8; }\n  </style>\n</head>\n<body>\n  <h1>🚀 Hello from NovaStudio IDE!</h1>\n  <p>Edit HTML, CSS, JavaScript, Python, SQL or Java files live.</p>\n  <button onclick="alert('Interactive JavaScript works!')">Click Me</button>\n</body>\n</html>`,
+      'script.py': `# Python 3.11 Runtime inside NovaStudio IDE\nimport sys\n\ndef greet(name):\n    return f"Hello, {name}! Running via Pyodide WebAssembly."\n\nprint(greet("ItsNovaTVs"))\nprint("Standard output stream captured successfully!")\n`,
+      'database.sql': `-- AlaSQL Database Engine Demo\nCREATE TABLE Users (id INT, name STRING, role STRING);\nINSERT INTO Users VALUES (1, 'Nova', 'Admin'), (2, 'Alex', 'Developer'), (3, 'Sam', 'Designer');\n\nSELECT * FROM Users WHERE id >= 1;\n`,
+      'App.java': `public class App {\n    public static void main(String[] args) {\n        System.out.println("Executing Java logic inside NovaStudio client sandbox...");\n        for(int i = 1; i <= 3; i++) {\n            System.out.println("Iteration count: " + i);\n        }\n    }\n}\n`,
+      'data.json': `{\n  "appName": "NovaStudio-IDE",\n  "version": "1.0.0",\n  "author": "ItsNovaTVs",\n  "features": ["Java", "Python", "SQL", "Web", "GitHub PAT"]\n}\n`
+    };
 
-    window.onload = function() {
-      // Initialize CodeMirror editor instance
-      const container = document.getElementById('editorContainer');
-      editor = CodeMirror(container, {
-        value: files[0].content,
-        mode: files[0].language,
+    let fileGithubShas = {}; // Maps filename -> GitHub SHA blob hash for remote sync
+    let openTabs = ['index.html', 'script.py', 'database.sql'];
+    let activeTabFile = 'index.html';
+
+    // GitHub Account & Linked Repo State
+    let githubState = {
+      pat: localStorage.getItem('nova_gh_pat') || '',
+      owner: localStorage.getItem('nova_gh_owner') || 'ItsNovaTVs',
+      repo: localStorage.getItem('nova_gh_repo') || 'NovaStudio-IDE',
+      branch: localStorage.getItem('nova_gh_branch') || 'main',
+      userRepos: []
+    };
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      initCodeMirror();
+      renderFileExplorerTree();
+      renderTabs();
+      initPyodideEngine();
+      
+      // Auto fill stored PAT if existing
+      if (githubState.pat) {
+        document.getElementById('gh-pat-input').value = githubState.pat;
+      }
+      document.getElementById('gh-manual-repo').value = `${githubState.owner}/${githubState.repo}`;
+      updateGitHubBadgeUI();
+    });
+
+    // Initialize CodeMirror Editor
+    function initCodeMirror() {
+      const container = document.getElementById('codemirror-wrapper');
+      editorInstance = CodeMirror(container, {
+        value: workspaceFiles[activeTabFile] || '',
+        mode: getCodeMirrorMode(activeTabFile),
         theme: 'dracula',
         lineNumbers: true,
-        matchBrackets: true,
         autoCloseBrackets: true,
-        tabSize: 4,
-        indentUnit: 4,
+        matchBrackets: true,
+        indentUnit: 2,
+        tabSize: 2,
         lineWrapping: true
       });
 
-      // Synchronize editor changes back to active file object
-      editor.on('change', () => {
-        const file = getActiveFile();
-        if (file) {
-          file.content = editor.getValue();
-          saveFilesToStorage();
+      // Synchronize editor changes back to state object
+      editorInstance.on('change', () => {
+        if (activeTabFile) {
+          workspaceFiles[activeTabFile] = editorInstance.getValue();
+          document.getElementById('repo-dirty-indicator').classList.remove('hidden');
         }
       });
-
-      // Track cursor positions for status bar
-      editor.on('cursorActivity', () => {
-        const pos = editor.getCursor();
-        document.getElementById('statusLineCol').textContent = `Ln ${pos.line + 1}, Col ${pos.ch + 1}`;
-      });
-
-      renderFileTree();
-      renderTabBar();
-      updateStatusExt();
-
-      // Listen for postMessages from sandbox preview iframe console
-      window.addEventListener('message', (event) => {
-        if (event.data && event.data.type === 'CONSOLE_LOG') {
-          appendLog(`[Browser Sandbox] ${event.data.message}`, event.data.logType || 'info');
-        }
-      });
-    };
-
-    function saveFilesToStorage() {
-      localStorage.setItem('novastudio_files', JSON.stringify(files));
     }
 
-    function getActiveFile() {
-      return files.find(f => f.id === activeFileId);
-    }
-
-    function renderFileTree() {
-      const container = document.getElementById('fileTreeContainer');
-      container.innerHTML = '';
-
-      files.forEach(file => {
-        const isActive = file.id === activeFileId;
-        const div = document.createElement('div');
-        div.className = `flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-all ${
-          isActive ? 'bg-gray-800 text-blue-400 font-semibold' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
-        }`;
-        
-        let iconClass = 'fa-file-code text-blue-400';
-        if (file.name.endsWith('.py')) iconClass = 'fa-brands fa-python text-amber-400';
-        if (file.name.endsWith('.sql')) iconClass = 'fa-solid fa-database text-amber-500';
-        if (file.name.endsWith('.java')) iconClass = 'fa-brands fa-java text-red-400';
-        if (file.name.endsWith('.json')) iconClass = 'fa-solid fa-code text-emerald-400';
-        if (file.name.endsWith('.html')) iconClass = 'fa-brands fa-html5 text-orange-500';
-
-        div.innerHTML = `
-          <div class="flex items-center space-x-2 truncate flex-1" onclick="switchActiveFile('${file.id}')">
-            <i class="${iconClass} text-xs"></i>
-            <span class="truncate text-xs">${file.name}</span>
-          </div>
-          <button onclick="deleteFile(event, '${file.id}')" class="text-gray-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 p-1" title="Delete file">
-            <i class="fa-solid fa-trash-can text-[10px]"></i>
-          </button>
-        `;
-        div.classList.add('group');
-        container.appendChild(div);
-      });
-    }
-
-    function renderTabBar() {
-      const bar = document.getElementById('tabBar');
-      bar.innerHTML = '';
-
-      files.forEach(file => {
-        const isActive = file.id === activeFileId;
-        const tab = document.createElement('div');
-        tab.className = `px-3 h-full flex items-center space-x-2 border-r border-editor-border cursor-pointer select-none text-xs transition-all ${
-          isActive ? 'active-tab' : 'bg-editor-tab text-gray-400 hover:bg-gray-800'
-        }`;
-        tab.onclick = () => switchActiveFile(file.id);
-
-        tab.innerHTML = `
-          <span>${file.name}</span>
-          <i onclick="closeTab(event, '${file.id}')" class="fa-solid fa-xmark text-[10px] hover:text-white rounded p-0.5"></i>
-        `;
-        bar.appendChild(tab);
-      });
-    }
-
-    function switchActiveFile(id) {
-      activeFileId = id;
-      const file = getActiveFile();
-      if (file && editor) {
-        editor.setValue(file.content);
-        editor.setOption('mode', file.language);
-      }
-      renderFileTree();
-      renderTabBar();
-      updateStatusExt();
-    }
-
-    function updateStatusExt() {
-      const file = getActiveFile();
-      if (file) {
-        document.getElementById('statusFileExt').textContent = file.name.split('.').pop().toUpperCase();
+    // Determine Mode by File Extension
+    function getCodeMirrorMode(filename) {
+      if (!filename) return 'javascript';
+      const ext = filename.split('.').pop().toLowerCase();
+      switch (ext) {
+        case 'html': return 'htmlmixed';
+        case 'css': return 'css';
+        case 'js': return 'javascript';
+        case 'json': return { name: 'javascript', json: true };
+        case 'py': return 'python';
+        case 'sql': return 'sql';
+        case 'java': return 'text/x-java';
+        case 'md': return 'markdown';
+        default: return 'javascript';
       }
     }
 
-    function promptNewFile() {
-      const name = prompt('Enter new file name (e.g. app.js, script.py, query.sql, App.java):');
-      if (!name) return;
+    // Run Active Code Engine
+    async function runActiveCode() {
+      if (!activeTabFile) return;
+      const ext = activeTabFile.split('.').pop().toLowerCase();
+      const code = editorInstance.getValue();
 
-      let lang = 'javascript';
-      if (name.endsWith('.py')) lang = 'python';
-      else if (name.endsWith('.sql')) lang = 'sql';
-      else if (name.endsWith('.html')) lang = 'htmlmixed';
-      else if (name.endsWith('.java')) lang = 'clike';
-      else if (name.endsWith('.json')) lang = 'javascript';
-      else if (name.endsWith('.css')) lang = 'css';
+      showToast('Running code execution...', 'info');
 
-      const newFile = {
-        id: Date.now().toString(),
-        name: name,
-        language: lang,
-        content: `// New file: ${name}\n`
-      };
-
-      files.push(newFile);
-      saveFilesToStorage();
-      switchActiveFile(newFile.id);
+      if (ext === 'html' || ext === 'css' || ext === 'js') {
+        runWebSandbox();
+      } else if (ext === 'py') {
+        await runPythonCode(code);
+      } else if (ext === 'sql') {
+        runSqlDatabase(code);
+      } else if (ext === 'java') {
+        runJavaSimulator(code);
+      } else if (ext === 'json') {
+        validateJson(code);
+      } else {
+        appendOutput(`[System] Preview or execution not configured for .${ext} files.`);
+      }
     }
 
-    function deleteFile(event, id) {
-      event.stopPropagation();
-      if (files.length <= 1) {
-        alert('Cannot delete the last remaining file in workspace.');
+    // 1. Python Pyodide WASM Execution
+    async function initPyodideEngine() {
+      try {
+        pyodideInstance = await loadPyodide();
+        document.getElementById('pyodide-status').innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Pyodide Ready';
+      } catch (err) {
+        console.error("Pyodide Load Error:", err);
+        document.getElementById('pyodide-status').innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Pyodide Idle';
+      }
+    }
+
+    async function runPythonCode(code) {
+      switchOutputTab('terminal');
+      if (!pyodideInstance) {
+        appendOutput("[Pyodide Engine] Initializing Pyodide Python runtime, please wait...");
+        await initPyodideEngine();
+      }
+      try {
+        pyodideInstance.setStdout({ batched: (text) => appendOutput(text) });
+        pyodideInstance.setStderr({ batched: (text) => appendOutput(`[Error] ${text}`) });
+        appendOutput(`=== Running ${activeTabFile} ===`);
+        await pyodideInstance.runPythonAsync(code);
+        appendOutput(`\n[Process completed successfully]`);
+      } catch (err) {
+        appendOutput(`\nTraceback (most recent call last):\n${err}`);
+      }
+    }
+
+    // 2. AlaSQL In-Memory Database Execution Engine
+    function runSqlDatabase(sqlQuery) {
+      switchOutputTab('sqlgrid');
+      try {
+        const res = alasql(sqlQuery);
+        renderSqlTable(res);
+      } catch (err) {
+        document.getElementById('sql-table-container').innerHTML = `<div class="p-3 text-red-400 bg-red-950/40 rounded border border-red-800">SQL Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderSqlTable(data) {
+      const container = document.getElementById('sql-table-container');
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        container.innerHTML = '<div class="text-green-400">Query executed successfully. (No rows returned)</div>';
         return;
       }
-      if (confirm('Are you sure you want to delete this file?')) {
-        files = files.filter(f => f.id !== id);
-        if (activeFileId === id) {
-          activeFileId = files[0].id;
+
+      // Handle multi-statement results
+      let rows = Array.isArray(data[data.length - 1]) ? data[data.length - 1] : data;
+      if (!Array.isArray(rows)) rows = [rows];
+
+      if (rows.length === 0 || typeof rows[0] !== 'object') {
+        container.innerHTML = `<pre class="text-gray-200">${JSON.stringify(data, null, 2)}</pre>`;
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      let html = `<table class="w-full border-collapse text-xs text-left text-gray-200">
+        <thead><tr class="bg-gray-800 text-gray-300 border-b border-gray-700">`;
+      headers.forEach(h => html += `<th class="p-2 font-semibold border-r border-gray-700">${h}</th>`);
+      html += `</tr></thead><tbody>`;
+
+      rows.forEach((row, idx) => {
+        html += `<tr class="${idx % 2 === 0 ? 'bg-gray-900' : 'bg-gray-950'} border-b border-gray-800 hover:bg-gray-800/50">`;
+        headers.forEach(h => html += `<span class="p-2 border-r border-gray-800 truncate max-w-xs block">${row[h] !== undefined ? row[h] : ''}</span>`);
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    // 3. Web HTML/CSS/JS Sandbox Frame Rendering
+    function runWebSandbox() {
+      switchOutputTab('preview');
+      const iframe = document.getElementById('sandbox-iframe');
+      let htmlContent = workspaceFiles['index.html'] || editorInstance.getValue();
+      
+      iframe.srcdoc = htmlContent;
+    }
+
+    // 4. Java Execution Simulator
+    function runJavaSimulator(code) {
+      switchOutputTab('terminal');
+      appendOutput(`=== Compiling and Executing ${activeTabFile} ===`);
+      
+      // Extract System.out.println calls
+      const printlnRegex = /System\.out\.println\s*\((.*?)\);/g;
+      let match;
+      let outputFound = false;
+
+      while ((match = printlnRegex.exec(code)) !== null) {
+        let val = match[1].trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
         }
-        saveFilesToStorage();
-        switchActiveFile(activeFileId);
-      }
-    }
-
-    function closeTab(event, id) {
-      event.stopPropagation();
-      deleteFile(event, id);
-    }
-
-    async function executeCode() {
-      const file = getActiveFile();
-      if (!file) return;
-
-      const ext = file.name.split('.').pop().toLowerCase();
-      appendLog(`\n---> Executing [${file.name}] ...`, 'info');
-
-      if (ext === 'py') {
-        switchOutputTab('terminal');
-        await executePython(file.content);
-      } else if (ext === 'sql') {
-        switchOutputTab('sql');
-        executeSQL(file.content);
-      } else if (ext === 'html' || ext === 'js' || ext === 'css') {
-        switchOutputTab('preview');
-        executeWebSandbox();
-      } else if (ext === 'java') {
-        switchOutputTab('terminal');
-        executeJavaMock(file.content);
-      } else if (ext === 'json') {
-        switchOutputTab('terminal');
-        executeJSONValidation(file.content);
-      } else {
-        appendLog(`Unrecognized execution runtime for file extension .${ext}`, 'error');
-      }
-    }
-
-    /* Python WASM Engine (Pyodide) */
-    async function executePython(code) {
-      if (!pyodideInstance) {
-        if (isPyodideLoading) {
-          appendLog('Pyodide engine is still loading... Please wait.', 'warn');
-          return;
-        }
-        try {
-          isPyodideLoading = true;
-          appendLog('Loading Pyodide Python WebAssembly runtime (first run may take a few seconds)...', 'info');
-          pyodideInstance = await loadPyodide();
-          isPyodideLoading = false;
-          appendLog('Pyodide Python runtime loaded successfully!', 'success');
-        } catch (err) {
-          isPyodideLoading = false;
-          appendLog(`Failed to load Python WASM runtime: ${err.message}`, 'error');
-          return;
-        }
+        appendOutput(val);
+        outputFound = true;
       }
 
-      try {
-        // Redirect Python stdout to IDE terminal
-        pyodideInstance.setStdout({
-          write: (text) => appendLog(text, 'output')
-        });
-        pyodideInstance.setStderr({
-          write: (text) => appendLog(text, 'error')
-        });
-
-        await pyodideInstance.runPythonAsync(code);
-        appendLog(`[Process exited with status code 0]`, 'success');
-      } catch (err) {
-        appendLog(`Python Runtime Error:\n${err.message}`, 'error');
+      if (!outputFound) {
+        appendOutput("[Java Engine] Logic parsed and validated successfully. No System.out output detected.");
       }
+      appendOutput("\n[Java Process Finished]");
     }
 
-    /* SQL Engine (AlaSQL) */
-    function executeSQL(code) {
-      try {
-        const res = alasql(code);
-        appendLog('SQL statement executed successfully.', 'success');
-
-        const container = document.getElementById('sqlResultContainer');
-        container.innerHTML = '';
-
-        if (Array.isArray(res) && res.length > 0 && typeof res[0] === 'object') {
-          // Display tabular dataset grid
-          const table = document.createElement('table');
-          table.className = 'w-full text-left border-collapse border border-gray-700 text-xs';
-          
-          const keys = Object.keys(res[res.length - 1] || res[0]);
-          let headHtml = '<tr class="bg-gray-800 text-blue-400 border-b border-gray-700">';
-          keys.forEach(k => headHtml += `<th class="p-2 border-r border-gray-700">${k}</th>`);
-          headHtml += '</tr>';
-          
-          let bodyHtml = '';
-          const rows = Array.isArray(res[res.length - 1]) ? res[res.length - 1] : res;
-          rows.forEach((row, i) => {
-            bodyHtml += `<tr class="${i % 2 === 0 ? 'bg-gray-900' : 'bg-gray-950'} border-b border-gray-800">`;
-            keys.forEach(k => bodyHtml += `<td class="p-2 border-r border-gray-800 text-gray-200">${row[k]}</td>`);
-            bodyHtml += '</tr>';
-          });
-
-          table.innerHTML = `<thead>${headHtml}</thead><tbody>${bodyHtml}</tbody>`;
-          container.appendChild(table);
-        } else {
-          container.innerHTML = `<div class="p-3 text-emerald-400 font-mono"><i class="fa-solid fa-check-circle mr-1"></i> Statement executed. Result: ${JSON.stringify(res, null, 2)}</div>`;
-        }
-      } catch (err) {
-        appendLog(`SQL Execution Error: ${err.message}`, 'error');
-        document.getElementById('sqlResultContainer').innerHTML = `<div class="text-rose-400 font-mono p-2">SQL Error: ${err.message}</div>`;
-      }
-    }
-
-    /* Web Sandbox Execution (Iframe) */
-    function executeWebSandbox() {
-      const htmlFile = files.find(f => f.name.endsWith('.html')) || getActiveFile();
-      const cssFile = files.find(f => f.name.endsWith('.css'));
-      const jsFile = files.find(f => f.name.endsWith('.js'));
-
-      let content = htmlFile ? htmlFile.content : '<h1>No HTML content found</h1>';
-
-      if (cssFile) {
-        content += `<style>${cssFile.content}</style>`;
-      }
-
-      // Inject console hook script into iframe
-      const consoleHook = `
-        <script>
-          (function() {
-            var oldLog = console.log;
-            console.log = function() {
-              var msg = Array.from(arguments).join(' ');
-              window.parent.postMessage({ type: 'CONSOLE_LOG', message: msg, logType: 'info' }, '*');
-              oldLog.apply(console, arguments);
-            };
-            window.onerror = function(err) {
-              window.parent.postMessage({ type: 'CONSOLE_LOG', message: err, logType: 'error' }, '*');
-            };
-          })();
-        <\/script>
-      `;
-
-      if (jsFile && !content.includes(jsFile.name)) {
-        content += `${consoleHook}<script>${jsFile.content}<\/script>`;
-      } else {
-        content = consoleHook + content;
-      }
-
-      const iframe = document.getElementById('previewIframe');
-      iframe.srcdoc = content;
-      appendLog('Web sandbox iframe refreshed.', 'info');
-    }
-
-    /* Java Mock Execution Engine */
-    function executeJavaMock(code) {
-      appendLog('Compiling Java bytecode...', 'info');
-      setTimeout(() => {
-        try {
-          // Parse System.out.println occurrences
-          const sysOutRegex = /System\.out\.println\s*\((.*)\);/g;
-          let match;
-          let outputs = [];
-
-          while ((match = sysOutRegex.exec(code)) !== null) {
-            let rawVal = match[1].trim();
-            // Simple expression evaluator for mock output
-            if (rawVal.startsWith('"') && rawVal.endsWith('"')) {
-              outputs.push(rawVal.slice(1, -1));
-            } else {
-              try {
-                // Safe string concatenation parser
-                let parsed = rawVal.replace(/"\s*\+\s*/g, '').replace(/\s*\+\s*"/g, '');
-                outputs.push(parsed.replace(/"/g, ''));
-              } catch(e) {
-                outputs.push(rawVal);
-              }
-            }
-          }
-
-          if (outputs.length > 0) {
-            outputs.forEach(o => appendLog(o, 'output'));
-            appendLog('[Java Execution Finished Successfully - Exit Code 0]', 'success');
-          } else {
-            appendLog('Java class parsed. No System.out statements captured.', 'warn');
-          }
-        } catch(err) {
-          appendLog(`Java Compilation Error: ${err.message}`, 'error');
-        }
-      }, 300);
-    }
-
-    /* JSON Validation Engine */
-    function executeJSONValidation(code) {
+    // 5. JSON Inspector
+    function validateJson(code) {
+      switchOutputTab('terminal');
       try {
         const parsed = JSON.parse(code);
-        appendLog('Valid JSON document format!', 'success');
-        appendLog(`Key count: ${Object.keys(parsed).length}`, 'info');
+        appendOutput("✅ Valid JSON object structure:\n");
+        appendOutput(JSON.stringify(parsed, null, 2));
       } catch (err) {
-        appendLog(`JSON Syntax Error: ${err.message}`, 'error');
+        appendOutput(`❌ Invalid JSON Syntax:\n${err.message}`);
       }
     }
 
-    function appendLog(msg, type = 'info') {
-      const term = document.getElementById('pane-terminal');
-      const div = document.createElement('div');
-      div.className = 'font-mono text-xs leading-relaxed break-words';
-
-      if (type === 'error') div.className += ' text-rose-400';
-      else if (type === 'success') div.className += ' text-emerald-400 font-semibold';
-      else if (type === 'warn') div.className += ' text-amber-400';
-      else if (type === 'output') div.className += ' text-gray-200 pl-2 border-l-2 border-blue-500 my-0.5';
-      else div.className += ' text-gray-400';
-
-      div.textContent = msg;
-      term.appendChild(div);
-      term.scrollTop = term.scrollHeight;
+    // GitHub API Integration Functions
+    function openGitHubModal() {
+      document.getElementById('github-modal').classList.remove('hidden');
     }
 
-    function clearTerminal() {
-      document.getElementById('pane-terminal').innerHTML = '';
+    function closeGitHubModal() {
+      document.getElementById('github-modal').classList.add('hidden');
     }
 
-    function switchOutputTab(tab) {
-      document.getElementById('pane-terminal').classList.add('hidden');
-      document.getElementById('pane-preview').classList.add('hidden');
-      document.getElementById('pane-sql').classList.add('hidden');
+    async function connectGitHubAccount() {
+      const pat = document.getElementById('gh-pat-input').value.trim();
+      if (!pat) {
+        showToast('Please enter a valid GitHub Personal Access Token', 'error');
+        return;
+      }
 
-      document.getElementById('outtab-terminal').className = 'px-2.5 py-1 rounded text-gray-400 font-semibold hover:text-gray-200';
-      document.getElementById('outtab-preview').className = 'px-2.5 py-1 rounded text-gray-400 font-semibold hover:text-gray-200';
-      document.getElementById('outtab-sql').className = 'px-2.5 py-1 rounded text-gray-400 font-semibold hover:text-gray-200';
-
-      document.getElementById(`pane-${tab}`).classList.remove('hidden');
-      document.getElementById(`outtab-${tab}`).className = 'px-2.5 py-1 rounded text-gray-300 font-semibold bg-gray-800';
-    }
-
-    async function askAI(promptText) {
-      toggleSidebar('ai');
-      const activeFile = getActiveFile();
-      const userPrompt = `${promptText}\n\nActive File Name: ${activeFile ? activeFile.name : 'None'}\n\`\`\`\n${activeFile ? activeFile.content : ''}\n\`\`\``;
-
-      appendAIMessage('user', promptText);
-      const loadingId = appendAIMessage('ai', '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Nova AI is thinking...');
+      githubState.pat = pat;
+      localStorage.setItem('nova_gh_pat', pat);
 
       try {
-        const customApiKey = document.getElementById('settingApiKey').value.trim();
-        const apiKey = customApiKey || ""; // Canvas auto-inject runtime key if empty
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+        showToast('Fetching GitHub user repositories...', 'info');
+        const resp = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+          headers: {
+            'Authorization': `token ${pat}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
 
-        const response = await fetch(apiUrl, {
+        if (!resp.ok) throw new Error(`GitHub API returned status ${resp.status}`);
+
+        const repos = await resp.json();
+        githubState.userRepos = repos;
+
+        const selectEl = document.getElementById('gh-repo-select');
+        selectEl.innerHTML = '<option value="">-- Select a repository --</option>';
+        
+        repos.forEach(repo => {
+          const opt = document.createElement('option');
+          opt.value = repo.full_name;
+          opt.textContent = `${repo.full_name} (${repo.private ? 'Private' : 'Public'})`;
+          selectEl.appendChild(opt);
+        });
+
+        showToast(`Connected! Loaded ${repos.length} repositories.`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(`Failed to fetch user repositories: ${err.message}`, 'error');
+      }
+    }
+
+    function onGitHubRepoSelectChange() {
+      const val = document.getElementById('gh-repo-select').value;
+      if (val) {
+        document.getElementById('gh-manual-repo').value = val;
+      }
+    }
+
+    async function loadTargetGitHubRepository() {
+      const repoPath = document.getElementById('gh-manual-repo').value.trim();
+      const branch = document.getElementById('gh-branch-select').value.trim() || 'main';
+
+      if (!repoPath || !repoPath.includes('/')) {
+        showToast('Please enter repository in owner/repo format', 'error');
+        return;
+      }
+
+      const [owner, repo] = repoPath.split('/');
+      githubState.owner = owner;
+      githubState.repo = repo;
+      githubState.branch = branch;
+
+      localStorage.setItem('nova_gh_owner', owner);
+      localStorage.setItem('nova_gh_repo', repo);
+      localStorage.setItem('nova_gh_branch', branch);
+
+      closeGitHubModal();
+      showToast(`Loading tree for ${owner}/${repo} [${branch}]...`, 'info');
+
+      try {
+        // Fetch git tree
+        const headers = githubState.pat ? { 'Authorization': `token ${githubState.pat}` } : {};
+        const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+        
+        const resp = await fetch(treeUrl, { headers });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}: Could not fetch repository contents`);
+
+        const data = await resp.json();
+        if (!data.tree) throw new Error('Invalid repository tree response');
+
+        workspaceFiles = {};
+        fileGithubShas = {};
+
+        // Filter files (limit size / text files)
+        const fileEntries = data.tree.filter(item => item.type === 'blob');
+
+        for (const item of fileEntries.slice(0, 20)) { // Load top 20 files directly
+          try {
+            const contentResp = await fetch(item.url, { headers });
+            const blobData = await contentResp.json();
+            
+            if (blobData.encoding === 'base64') {
+              workspaceFiles[item.path] = atob(blobData.content.replace(/\s/g, ''));
+              fileGithubShas[item.path] = item.sha;
+            }
+          } catch (e) {
+            console.warn(`Skipping file ${item.path}`, e);
+          }
+        }
+
+        openTabs = Object.keys(workspaceFiles);
+        if (openTabs.length > 0) {
+          activeTabFile = openTabs[0];
+          editorInstance.setValue(workspaceFiles[activeTabFile]);
+          editorInstance.setOption('mode', getCodeMirrorMode(activeTabFile));
+        }
+
+        renderFileExplorerTree();
+        renderTabs();
+        updateGitHubBadgeUI();
+        showToast(`Repository ${owner}/${repo} synced successfully!`, 'success');
+
+      } catch (err) {
+        console.error(err);
+        showToast(`Error loading repo: ${err.message}`, 'error');
+      }
+    }
+
+    // Commit & Push File to GitHub API
+    function openCommitModal() {
+      if (!githubState.owner || !githubState.repo) {
+        openGitHubModal();
+        return;
+      }
+      document.getElementById('commit-target-repo-text').textContent = `Target: ${githubState.owner}/${githubState.repo} (${githubState.branch})`;
+      document.getElementById('commit-filepath').value = activeTabFile;
+      document.getElementById('commit-message-input').value = `Update ${activeTabFile} via NovaStudio IDE`;
+      document.getElementById('commit-modal').classList.remove('hidden');
+    }
+
+    function closeCommitModal() {
+      document.getElementById('commit-modal').classList.add('hidden');
+    }
+
+    async function executePushToGitHub() {
+      if (!githubState.pat) {
+        showToast('Personal Access Token required to commit changes', 'error');
+        openGitHubModal();
+        return;
+      }
+
+      const filePath = document.getElementById('commit-filepath').value;
+      const message = document.getElementById('commit-message-input').value.trim();
+      const content = btoa(unescape(encodeURIComponent(workspaceFiles[filePath])));
+      const sha = fileGithubShas[filePath];
+
+      const url = `https://api.github.com/repos/${githubState.owner}/${githubState.repo}/contents/${filePath}`;
+      
+      const payload = {
+        message: message || `Update ${filePath}`,
+        content: content,
+        branch: githubState.branch
+      };
+
+      if (sha) payload.sha = sha;
+
+      try {
+        showToast('Pushing commit to GitHub...', 'info');
+        const resp = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${githubState.pat}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          const errJson = await resp.json();
+          throw new Error(errJson.message || 'Commit failed');
+        }
+
+        const resData = await resp.json();
+        fileGithubShas[filePath] = resData.content.sha;
+
+        closeCommitModal();
+        document.getElementById('repo-dirty-indicator').classList.add('hidden');
+        showToast(`Successfully pushed commit to ${githubState.owner}/${githubState.repo}!`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(`Push failed: ${err.message}`, 'error');
+      }
+    }
+
+    function updateGitHubBadgeUI() {
+      document.getElementById('active-repo-name').textContent = `${githubState.owner}/${githubState.repo}`;
+      document.getElementById('active-repo-branch').textContent = githubState.branch;
+      document.getElementById('sidebar-repo-text').textContent = `${githubState.owner}/${githubState.repo}`;
+    }
+
+    async function sendAiMessage() {
+      const inputEl = document.getElementById('ai-user-input');
+      const query = inputEl.value.trim();
+      if (!query) return;
+
+      appendAiChatMessage('user', query);
+      inputEl.value = '';
+
+      const contextPrompt = `Active file: ${activeTabFile}\nCode:\n\`\`\`${getCodeMirrorMode(activeTabFile)}\n${workspaceFiles[activeTabFile] || ''}\n\`\`\`\n\nUser Question: ${query}`;
+      
+      await callGeminiAiApi(contextPrompt);
+    }
+
+    async function runAiQuickAction(type) {
+      let prompt = '';
+      const code = workspaceFiles[activeTabFile] || '';
+
+      switch (type) {
+        case 'explain':
+          prompt = `Explain line by line how this ${activeTabFile} code works:\n\`\`\`\n${code}\n\`\`\``;
+          break;
+        case 'fix':
+          prompt = `Identify any syntax errors, runtime bugs, or performance issues in this code and provide the fix:\n\`\`\`\n${code}\n\`\`\``;
+          break;
+        case 'refactor':
+          prompt = `Refactor this code for readability and modern best practices:\n\`\`\`\n${code}\n\`\`\``;
+          break;
+        case 'tests':
+          prompt = `Generate comprehensive unit tests for this ${activeTabFile} file:\n\`\`\`\n${code}\n\`\`\``;
+          break;
+      }
+
+      appendAiChatMessage('user', `[Action] ${type.toUpperCase()} ${activeTabFile}`);
+      await callGeminiAiApi(prompt);
+    }
+
+    async function callGeminiAiApi(prompt) {
+      const loadingDiv = appendAiChatMessage('ai', '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing code with Gemini...');
+      
+      const apiKey = ""; // Canvas runtime key injection
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+      try {
+        const resp = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: userPrompt }] }],
+            contents: [{ parts: [{ text: prompt }] }],
             systemInstruction: {
-              parts: [{ text: "You are Nova AI, a world-class coding assistant inside NovaStudio IDE for developer ItsNovaTVs. Provide concise, clean, highly accurate solutions, refactored code snippets, or bug explanations." }]
+              parts: [{ text: "You are Nova AI, an expert programming assistant inside NovaStudio IDE. Provide concise, accurate code snippets and markdown explanations." }]
             }
           })
         });
 
-        const data = await response.json();
-        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't generate a response.";
-
-        updateAIMessage(loadingId, aiText);
+        const data = await resp.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't generate a response.";
+        loadingDiv.innerHTML = responseText.replace(/\n/g, '<br>');
       } catch (err) {
-        updateAIMessage(loadingId, `Error communicating with Gemini AI: ${err.message}`);
+        console.error(err);
+        loadingDiv.innerHTML = `<span class="text-red-400">AI Request Error: ${err.message}</span>`;
       }
     }
 
-    function handleAISubmit(e) {
-      e.preventDefault();
-      const input = document.getElementById('aiInput');
-      const val = input.value.trim();
-      if (!val) return;
-      input.value = '';
-      askAI(val);
-    }
-
-    function appendAIMessage(sender, text) {
-      const stream = document.getElementById('aiChatStream');
-      const msgId = 'msg-' + Date.now();
-      const div = document.createElement('div');
-      div.id = msgId;
-
-      if (sender === 'user') {
-        div.className = 'bg-blue-900/30 border border-blue-500/30 p-2.5 rounded-lg text-blue-200 self-end';
-        div.innerHTML = `<p class="font-semibold text-[10px] text-blue-400 mb-1"><i class="fa-solid fa-user mr-1"></i> You</p><div>${text}</div>`;
-      } else {
-        div.className = 'bg-gray-800 border border-gray-700 p-2.5 rounded-lg text-gray-200';
-        div.innerHTML = `<p class="font-semibold text-[10px] text-purple-400 mb-1"><i class="fa-solid fa-robot mr-1"></i> Nova AI</p><div class="whitespace-pre-wrap leading-relaxed">${text}</div>`;
-      }
-
-      stream.appendChild(div);
-      stream.scrollTop = stream.scrollHeight;
-      return msgId;
-    }
-
-    function updateAIMessage(id, text) {
-      const el = document.getElementById(id);
-      if (el) {
-        const body = el.querySelector('div:last-child');
-        if (body) body.innerText = text;
-      }
-    }
-
-    function toggleSidebar(panel) {
-      document.getElementById('panel-files').classList.add('hidden');
-      document.getElementById('panel-ai').classList.add('hidden');
-      document.getElementById('panel-github').classList.add('hidden');
-
-      document.getElementById('btn-sidebar-files').classList.remove('text-blue-400', 'bg-gray-800');
-      document.getElementById('btn-sidebar-ai').classList.remove('text-purple-400', 'bg-gray-800');
-      document.getElementById('btn-sidebar-github').classList.remove('text-blue-400', 'bg-gray-800');
-
-      document.getElementById(`panel-${panel}`).classList.remove('hidden');
-      document.getElementById(`panel-${panel}`).classList.add('flex');
+    function appendAiChatMessage(sender, text) {
+      const container = document.getElementById('ai-chat-messages');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = sender === 'user' 
+        ? 'bg-blue-950/40 border border-blue-800/40 p-2.5 rounded-lg text-blue-200 ml-4'
+        : 'bg-purple-950/40 border border-purple-800/40 p-2.5 rounded-lg text-purple-200 mr-4';
       
-      const btn = document.getElementById(`btn-sidebar-${panel}`);
-      if (btn) btn.classList.add('text-blue-400', 'bg-gray-800');
+      msgDiv.innerHTML = text;
+      container.appendChild(msgDiv);
+      container.scrollTop = container.scrollHeight;
+      return msgDiv;
     }
 
-    function formatActiveFile() {
-      const file = getActiveFile();
-      if (!file || !editor) return;
+    function renderFileExplorerTree() {
+      const treeEl = document.getElementById('file-explorer-tree');
+      treeEl.innerHTML = '';
 
-      if (file.name.endsWith('.json')) {
-        try {
-          const parsed = JSON.parse(editor.getValue());
-          editor.setValue(JSON.stringify(parsed, null, 2));
-        } catch(e) {
-          alert('Invalid JSON formatting: ' + e.message);
-        }
+      Object.keys(workspaceFiles).forEach(filename => {
+        const ext = filename.split('.').pop();
+        let iconClass = 'fa-file-code text-blue-400';
+        if (ext === 'html') iconClass = 'fa-html5 text-orange-400';
+        else if (ext === 'py') iconClass = 'fa-python text-amber-400';
+        else if (ext === 'sql') iconClass = 'fa-database text-purple-400';
+        else if (ext === 'java') iconClass = 'fa-java text-red-400';
+        else if (ext === 'json') iconClass = 'fa-file-json text-yellow-400';
+
+        const item = document.createElement('div');
+        item.className = `file-tree-item flex items-center justify-between px-2 py-1.5 rounded cursor-pointer ${filename === activeTabFile ? 'bg-editor-activeTab font-semibold text-white' : 'text-gray-300'}`;
+        
+        item.innerHTML = `
+          <div class="flex items-center space-x-2 truncate" onclick="openFileTab('${filename}')">
+            <i class="fa-solid ${iconClass}"></i>
+            <span class="truncate">${filename}</span>
+          </div>
+          <button onclick="deleteFile('${filename}')" class="text-gray-500 hover:text-red-400 p-1"><i class="fa-solid fa-trash"></i></button>
+        `;
+        treeEl.appendChild(item);
+      });
+    }
+
+    function renderTabs() {
+      const tabsHeader = document.getElementById('tabs-header');
+      tabsHeader.innerHTML = '';
+
+      openTabs.forEach(file => {
+        const tab = document.createElement('div');
+        tab.className = `px-3 py-2 text-xs border-r border-editor-border flex items-center space-x-2 cursor-pointer transition ${file === activeTabFile ? 'active-tab' : 'bg-editor-tab text-gray-400 hover:text-gray-200'}`;
+        tab.innerHTML = `
+          <span onclick="switchFileTab('${file}')">${file}</span>
+          <i onclick="closeTab('${file}')" class="fa-solid fa-xmark hover:text-red-400 text-[10px]"></i>
+        `;
+        tabsHeader.appendChild(tab);
+      });
+    }
+
+    function switchFileTab(filename) {
+      activeTabFile = filename;
+      editorInstance.setValue(workspaceFiles[filename] || '');
+      editorInstance.setOption('mode', getCodeMirrorMode(filename));
+      renderTabs();
+      renderFileExplorerTree();
+    }
+
+    function openFileTab(filename) {
+      if (!openTabs.includes(filename)) openTabs.push(filename);
+      switchFileTab(filename);
+    }
+
+    function closeTab(filename) {
+      openTabs = openTabs.filter(t => t !== filename);
+      if (activeTabFile === filename && openTabs.length > 0) {
+        switchFileTab(openTabs[0]);
       } else {
-        // Auto-indent selection
-        editor.operation(() => {
-          for (let i = 0; i < editor.lineCount(); i++) {
-            editor.indentLine(i);
-          }
-        });
+        renderTabs();
       }
+    }
+
+    function createNewFilePrompt() {
+      const filename = prompt('Enter new filename (e.g., app.py, main.js, query.sql):');
+      if (filename && !workspaceFiles[filename]) {
+        workspaceFiles[filename] = '';
+        openFileTab(filename);
+      }
+    }
+
+    function deleteFile(filename) {
+      if (Object.keys(workspaceFiles).length <= 1) {
+        showToast('Cannot delete the only remaining workspace file', 'error');
+        return;
+      }
+      delete workspaceFiles[filename];
+      closeTab(filename);
+      renderFileExplorerTree();
+    }
+
+    function switchOutputTab(tab) {
+      document.getElementById('output-view-terminal').classList.add('hidden');
+      document.getElementById('output-view-preview').classList.add('hidden');
+      document.getElementById('output-view-sqlgrid').classList.add('hidden');
+      
+      document.getElementById(`output-view-${tab}`).classList.remove('hidden');
+    }
+
+    function appendOutput(text) {
+      const terminal = document.getElementById('output-view-terminal');
+      terminal.innerText += text + '\n';
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function clearConsoleOutput() {
+      document.getElementById('output-view-terminal').innerText = '';
+    }
+
+    function toggleAiSidebar() {
+      document.getElementById('ai-sidebar').classList.toggle('hidden');
+    }
+
+    function toggleBottomPanel() {
+      const panel = document.getElementById('bottom-panel');
+      panel.classList.toggle('h-10');
+      panel.classList.toggle('h-56');
+    }
+
+    function changeTheme(theme) {
+      editorInstance.setOption('theme', theme);
     }
 
     function exportProjectZip() {
       const zip = new JSZip();
-      files.forEach(f => zip.file(f.name, f.content));
-      
-      zip.generateAsync({ type: 'blob' }).then(blob => {
+      Object.keys(workspaceFiles).forEach(name => {
+        zip.file(name, workspaceFiles[name]);
+      });
+      zip.generateAsync({ type: 'blob' }).then(content => {
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'ItsNovaTVs-NovaStudio-IDE.zip';
+        a.href = URL.createObjectURL(content);
+        a.download = `${githubState.repo || 'novastudio'}-workspace.zip`;
         a.click();
       });
+      showToast('Exported ZIP package!', 'success');
     }
 
-    function syncToGithub() {
-      const owner = document.getElementById('ghOwner').value.trim();
-      const repo = document.getElementById('ghRepo').value.trim();
-      const token = document.getElementById('ghToken').value.trim();
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const bg = type === 'error' ? 'bg-red-900/90 border-red-700 text-red-200' :
+                 type === 'success' ? 'bg-green-900/90 border-green-700 text-green-200' :
+                 'bg-blue-900/90 border-blue-700 text-blue-200';
 
-      if (!token) {
-        alert('Please enter a valid GitHub Personal Access Token to sync workspace.');
-        return;
-      }
-
-      alert(`Target repository target: ${owner}/${repo}\nWorkspace package prepared. Real GitHub REST sync request queued.`);
-    }
-
-    function changeTheme(themeName) {
-      if (editor) editor.setOption('theme', themeName);
-    }
-
-    function showSettingsModal() {
-      document.getElementById('settingsModal').classList.remove('hidden');
-    }
-
-    function hideSettingsModal() {
-      document.getElementById('settingsModal').classList.add('hidden');
-    }
-
-    function applySettings() {
-      const fontSize = document.getElementById('settingFontSize').value;
-      const tabSize = document.getElementById('settingTabSize').value;
-
-      const cmEl = document.querySelector('.CodeMirror');
-      if (cmEl) cmEl.style.fontSize = `${fontSize}px`;
-
-      if (editor) {
-        editor.setOption('tabSize', parseInt(tabSize));
-        editor.setOption('indentUnit', parseInt(tabSize));
-      }
+      toast.className = `pointer-events-auto flex items-center space-x-2 px-3 py-2 rounded-lg border text-xs shadow-xl backdrop-blur-sm ${bg} transition-all duration-300`;
+      toast.innerHTML = `<span>${msg}</span>`;
+      
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
     }
   </script>
 </body>
