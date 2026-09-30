@@ -991,15 +991,15 @@
       const names = {cpp:"C++",c:"C",go:"Go",rs:"Rust",kt:"Kotlin",java:"Java",rb:"Ruby",php:"PHP",sh:"Shell/Bash"};
       appendOutput("=== " + (names[ext] || ext.toUpperCase()) + " (" + activeTabFile + ") ===");
       const patterns = {
-        cpp: /std\\.cout\\s*<<\\s*["']([^"']*)["']/g,
-        c: /printf\\s*\\(\\s*["']([^"']*)["']/g,
-        go: /fmt\\.Println\\s*\\(\\s*["']([^"']*)["']/g,
-        rs: /println!\\s*\\(\\s*["']([^"']*)["']/g,
-        kt: /println\\s*\\(\\s*["']([^"']*)["']/g,
-        java: /System\\.out\\.println\\s*\\(\\s*["']([^"']*)["']/g,
-        rb: /puts\\s+["']([^"']*)["']/g,
-        php: /echo\\s+["']([^"']*)["']/g,
-        sh: /echo\\s+["']([^"']*)["']/g
+        cpp: /std\.cout\s*<<\s*["']([^"']*)["']/g,
+        c: /printf\s*\(\s*["']([^"']*)["']/g,
+        go: /fmt\.Println\s*\(\s*["']([^"']*)["']/g,
+        rs: /println!\s*\(\s*["']([^"']*)["']/g,
+        kt: /println\s*\(\s*["']([^"']*)["']/g,
+        java: /System\.out\.println\s*\(\s*["']([^"']*)["']/g,
+        rb: /puts\s+["']([^"']*)["']/g,
+        php: /echo\s+["']([^"']*)["']/g,
+        sh: /echo\s+["']([^"']*)["']/g
       };
       const re = patterns[ext];
       const outputs = [];
